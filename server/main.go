@@ -62,8 +62,11 @@ func (e *ApiError) Error() string {
 }
 
 type TranscribedMessage struct {
-	Transcript  string `json:"transcript"`
-	Translation string `json:"translation"`
+	Transcript     string  `json:"transcript"`
+	Confidence     float32 `json:"confidence"`
+	Translation    string  `json:"translation"`
+	TargetLanguage string  `json:"target_language"`
+	SourceLanguage string  `json:"source_language"`
 }
 
 type GoogleApplicationCredentials struct {
@@ -100,8 +103,22 @@ func handleTranscribe(w http.ResponseWriter, r *http.Request) {
 
 	if r.Method == "POST" {
 		file, _, err := r.FormFile("file")
-		targetLang := "en-US"
-		sourceLang := "pl-PL"
+		targetLang := r.FormValue("targetLanguage")
+		if targetLang == "" {
+			fmt.Println("Target language missing")
+			writeJSON(w, http.StatusUnprocessableEntity, &ApiError{
+				err:    "Please provide target language.",
+				status: http.StatusUnprocessableEntity,
+			})
+		}
+		sourceLang := r.FormValue("sourceLanguage")
+		if sourceLang == "" {
+			fmt.Println("Source language missing")
+			writeJSON(w, http.StatusUnprocessableEntity, &ApiError{
+				err:    "Please provide source language.",
+				status: http.StatusUnprocessableEntity,
+			})
+		}
 
 		if err != nil {
 			fmt.Println("Failed to parse form file:", err)
@@ -198,8 +215,11 @@ func handleTranscribe(w http.ResponseWriter, r *http.Request) {
 			fmt.Println(translationResponse)
 
 			writeJSON(w, http.StatusOK, &TranscribedMessage{
-				Transcript:  transcript.Transcript,
-				Translation: translationResponse.Translations[0].TranslatedText,
+				Transcript:     transcript.Transcript,
+				Confidence:     transcript.Confidence,
+				Translation:    translationResponse.Translations[0].TranslatedText,
+				TargetLanguage: targetLang,
+				SourceLanguage: sourceLang,
 			})
 		}
 
