@@ -42,6 +42,14 @@ type ApiError struct {
 	status int
 }
 
+func enableCors(handler http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "http://localhost:5173")
+		w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
+		handler(w, r)
+	}
+}
+
 func writeJSON(w http.ResponseWriter, status int, value any) {
 	w.WriteHeader(status)
 	w.Header().Add("Content-Type", "application/json")
@@ -54,15 +62,15 @@ func (e *ApiError) Error() string {
 }
 
 type TranscribedMessage struct {
-	Transcript  string
-	Translation string
+	Transcript  string `json:"transcript"`
+	Translation string `json:"translation"`
 }
 
 type GoogleApplicationCredentials struct {
 	ProjectID string `json:"project_id"`
 }
 
-func transcribeHandler(w http.ResponseWriter, r *http.Request) {
+func handleTranscribe(w http.ResponseWriter, r *http.Request) {
 	googleAppCredsFile, err := os.Open(os.Getenv("GOOGLE_APPLICATION_CREDENTIALS"))
 	if err != nil {
 		fmt.Println("Failed to parse config file:", err)
@@ -88,8 +96,7 @@ func transcribeHandler(w http.ResponseWriter, r *http.Request) {
 			status: http.StatusInternalServerError,
 		})
 	}
-
-	fmt.Println(googleAppCreds)
+	parent := fmt.Sprintf("projects/%v", googleAppCreds.ProjectID)
 
 	if r.Method == "POST" {
 		file, _, err := r.FormFile("file")
@@ -179,7 +186,7 @@ func transcribeHandler(w http.ResponseWriter, r *http.Request) {
 				Contents:           []string{transcript.Transcript},
 				TargetLanguageCode: targetLang,
 				SourceLanguageCode: sourceLang,
-				Parent:             fmt.Sprintf("project/%v", googleAppCreds.ProjectID),
+				Parent:             parent,
 			})
 			if err != nil {
 				fmt.Println("Translation failed:", err)
@@ -202,7 +209,7 @@ func transcribeHandler(w http.ResponseWriter, r *http.Request) {
 func main() {
 	os.Setenv("GOOGLE_APPLICATION_CREDENTIALS", "./google_application_credentials.json")
 
-	http.HandleFunc("/transcribe", transcribeHandler)
+	http.HandleFunc("/transcribe", enableCors(handleTranscribe))
 
 	fmt.Println("Translation service starting on:", "http://localhost:8055")
 	log.Fatal(http.ListenAndServe("localhost:8055", nil))
