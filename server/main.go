@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"time"
 
 	speech "cloud.google.com/go/speech/apiv1"
 	"cloud.google.com/go/speech/apiv1/speechpb"
@@ -17,14 +18,14 @@ import (
 	"cloud.google.com/go/translate/apiv3/translatepb"
 )
 
-func convertWebmToFlac(inputFile []byte) ([]byte, error) {
+func convertWebmToFlac(file []byte) ([]byte, error) {
 	cmd := exec.Command("./ffmpeg", "-i", "pipe:0", "-c:a", "flac", "-f", "flac", "-")
 
 	var (
 		output bytes.Buffer
 		errors bytes.Buffer
 	)
-	cmd.Stdin = bytes.NewReader(inputFile)
+	cmd.Stdin = bytes.NewReader(file)
 	cmd.Stdout = &output
 	cmd.Stderr = &errors
 
@@ -42,10 +43,14 @@ type ApiError struct {
 	status int
 }
 
+func (e *ApiError) Error() string {
+	return e.err
+}
+
 func enableCors(handler http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "http://localhost:5173")
-		w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
+		w.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS")
 		handler(w, r)
 	}
 }
@@ -54,14 +59,9 @@ func writeJSON(w http.ResponseWriter, status int, value any) {
 	w.WriteHeader(status)
 	w.Header().Add("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(value)
-
 }
 
-func (e *ApiError) Error() string {
-	return e.err
-}
-
-type TranscribedMessage struct {
+type TranslatedMessage struct {
 	Transcript     string  `json:"transcript"`
 	Confidence     float32 `json:"confidence"`
 	Translation    string  `json:"translation"`
@@ -72,6 +72,83 @@ type TranscribedMessage struct {
 type GoogleApplicationCredentials struct {
 	ProjectID string `json:"project_id"`
 }
+
+func translateFlacFile(ctx context.Context, sourceLang, targetLang string, flacFile []byte) (*TranslatedMessage, error) {
+	speechService, err := speech.NewClient(ctx)
+	if err != nil {
+		fmt.Println("Failed to initialise speech service:", err)
+		return nil, err
+	}
+	defer speechService.Close()
+
+	transcriptResponse, err := speechService.Recognize(ctx,
+		&speechpb.RecognizeRequest{
+			Config: &speechpb.RecognitionConfig{
+				Encoding:     speechpb.RecognitionConfig_FLAC,
+				LanguageCode: sourceLang,
+			},
+			Audio: &speechpb.RecognitionAudio{
+				AudioSource: &speechpb.RecognitionAudio_Content{
+					Content: flacFile,
+				},
+			},
+		},
+	)
+	if err != nil {
+		fmt.Println("Failed to recognize speech:", err)
+		return nil, err
+	}
+
+	var transcript *speechpb.SpeechRecognitionAlternative
+	for _, result := range transcriptResponse.Results {
+		for _, a := range result.Alternatives {
+			if transcript == nil || transcript.Confidence < a.Confidence {
+				transcript = a
+			}
+		}
+	}
+	if transcript == nil {
+		fmt.Println("Transcription not found.")
+		return nil, fmt.Errorf("the service could not generate transcription")
+	}
+
+	translateService, err := translate.NewTranslationClient(ctx)
+	if err != nil {
+		fmt.Println("Failed to initialise translation service", err)
+		return nil, err
+	}
+	defer translateService.Close()
+
+	ctxParent := ctx.Value(contextKey{})
+	parent, ok := ctxParent.(string)
+	if !ok {
+		return nil, fmt.Errorf("project parent missing")
+
+	}
+
+	translationResponse, err := translateService.TranslateText(ctx, &translatepb.TranslateTextRequest{
+		Contents:           []string{transcript.Transcript},
+		TargetLanguageCode: targetLang,
+		SourceLanguageCode: sourceLang,
+		Parent:             parent,
+	})
+
+	if err != nil {
+		fmt.Println("Translation failed:", err)
+		return nil, err
+	}
+
+	tm := &TranslatedMessage{
+		Transcript:     transcript.Transcript,
+		Confidence:     transcript.Confidence,
+		Translation:    translationResponse.Translations[0].TranslatedText,
+		TargetLanguage: targetLang,
+		SourceLanguage: sourceLang,
+	}
+	return tm, nil
+}
+
+type contextKey struct{}
 
 func handleTranscribe(w http.ResponseWriter, r *http.Request) {
 	googleAppCredsFile, err := os.Open(os.Getenv("GOOGLE_APPLICATION_CREDENTIALS"))
@@ -100,9 +177,9 @@ func handleTranscribe(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 	parent := fmt.Sprintf("projects/%v", googleAppCreds.ProjectID)
+	ctx := context.WithValue(context.Background(), contextKey{}, parent)
 
 	if r.Method == "POST" {
-		file, _, err := r.FormFile("file")
 		targetLang := r.FormValue("targetLanguage")
 		if targetLang == "" {
 			fmt.Println("Target language missing")
@@ -119,7 +196,7 @@ func handleTranscribe(w http.ResponseWriter, r *http.Request) {
 				status: http.StatusUnprocessableEntity,
 			})
 		}
-
+		file, _, err := r.FormFile("file")
 		if err != nil {
 			fmt.Println("Failed to parse form file:", err)
 			writeJSON(w, http.StatusUnprocessableEntity, &ApiError{
@@ -128,18 +205,6 @@ func handleTranscribe(w http.ResponseWriter, r *http.Request) {
 			})
 		}
 		defer file.Close()
-
-		ctx := context.Background()
-
-		speechService, err := speech.NewClient(ctx)
-		if err != nil {
-			fmt.Println("Failed to initialise speech service:", err)
-			writeJSON(w, http.StatusInternalServerError, &ApiError{
-				err:    "Failed to initialise speech service",
-				status: http.StatusInternalServerError,
-			})
-		}
-		defer speechService.Close()
 
 		audioBytes, err := io.ReadAll(file)
 		if err != nil {
@@ -159,78 +224,38 @@ func handleTranscribe(w http.ResponseWriter, r *http.Request) {
 			})
 		}
 
-		req := &speechpb.RecognizeRequest{
-			Config: &speechpb.RecognitionConfig{
-				Encoding:     speechpb.RecognitionConfig_FLAC,
-				LanguageCode: sourceLang,
-			},
-			Audio: &speechpb.RecognitionAudio{
-				AudioSource: &speechpb.RecognitionAudio_Content{
-					Content: flacFile,
-				},
-			},
-		}
-		resp, err := speechService.Recognize(ctx, req)
+		t, err := translateFlacFile(ctx, sourceLang, targetLang, flacFile)
 		if err != nil {
-			fmt.Println("Failed to recognize speech:", err)
+			fmt.Println("failed to translate audio file", err)
 			writeJSON(w, http.StatusInternalServerError, &ApiError{
-				err:    "Failed to recognize speech",
+				err:    "failed to translate audio file",
 				status: http.StatusInternalServerError,
 			})
 		}
 
-		translateService, err := translate.NewTranslationClient(ctx)
-		if err != nil {
-			fmt.Println("Failed to initialise translation service", err)
-			writeJSON(w, http.StatusInternalServerError, &ApiError{
-				err:    "Failed to initialise translation service",
-				status: http.StatusInternalServerError,
-			})
-		}
-		defer translateService.Close()
-
-		var transcript *speechpb.SpeechRecognitionAlternative
-
-		for _, result := range resp.Results {
-			for _, a := range result.Alternatives {
-				if transcript == nil || transcript.Confidence < a.Confidence {
-					transcript = a
-				}
-			}
-		}
-		if transcript != nil {
-			translationResponse, err := translateService.TranslateText(ctx, &translatepb.TranslateTextRequest{
-				Contents:           []string{transcript.Transcript},
-				TargetLanguageCode: targetLang,
-				SourceLanguageCode: sourceLang,
-				Parent:             parent,
-			})
-			if err != nil {
-				fmt.Println("Translation failed:", err)
-				writeJSON(w, http.StatusInternalServerError, &ApiError{
-					err:    "Translation failed",
-					status: http.StatusInternalServerError,
-				})
-			}
-			fmt.Println(translationResponse)
-
-			writeJSON(w, http.StatusOK, &TranscribedMessage{
-				Transcript:     transcript.Transcript,
-				Confidence:     transcript.Confidence,
-				Translation:    translationResponse.Translations[0].TranslatedText,
-				TargetLanguage: targetLang,
-				SourceLanguage: sourceLang,
-			})
-		}
-
+		writeJSON(w, http.StatusOK, t)
 	}
+}
+
+type HealthCheck struct {
+	Time   time.Time     `json:"time"`
+	Uptime time.Duration `json:"uptime"`
 }
 
 func main() {
 	os.Setenv("GOOGLE_APPLICATION_CREDENTIALS", "./google_application_credentials.json")
+	serverStart := time.Now()
 
 	http.HandleFunc("/transcribe", enableCors(handleTranscribe))
+	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		now := time.Now()
+		fmt.Println("health check", now)
+		writeJSON(w, http.StatusOK, &HealthCheck{
+			Time:   now,
+			Uptime: time.Since(serverStart),
+		})
+	})
 
 	fmt.Println("Translation service starting on:", "http://localhost:8055")
-	log.Fatal(http.ListenAndServe("localhost:8055", nil))
+	log.Fatal(http.ListenAndServe(":8055", nil))
 }
