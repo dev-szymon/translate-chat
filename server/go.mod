@@ -5,6 +5,7 @@ go 1.20
 require (
 	cloud.google.com/go/speech v1.19.0
 	cloud.google.com/go/translate v1.8.2
+	github.com/joho/godotenv v1.5.1
 )
 
 require (

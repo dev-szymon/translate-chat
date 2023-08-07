@@ -21,7 +21,7 @@ const fetchTranslation = async ({file, sourceLanguage, targetLanguage}: FetchTra
     formData.append("sourceLanguage", sourceLanguage);
     formData.append("targetLanguage", targetLanguage);
 
-    const postFileRequest = await fetch("http://localhost:8055/transcribe", {
+    const postFileRequest = await fetch("http://localhost:8055/translate-file", {
         body: formData,
         method: "POST"
     });
@@ -99,7 +99,6 @@ export default function Chat() {
             const file = new Blob(audioChunks, {type: "audio/webm"});
 
             if (file.size > 0 && leftLanguage && rightLanguage) {
-                console.log(currentSpeaker);
                 fetchTranslation({
                     file,
                     sourceLanguage:
@@ -120,7 +119,6 @@ export default function Chat() {
         }
     }, [isRecording, isPending, audioChunks, leftLanguage, rightLanguage, currentSpeaker]);
 
-    console.log(responses);
     return (
         <div className="w-full flex justify-center">
             <div className="flex flex-col p-2 gap-2 max-w-xl w-full">
