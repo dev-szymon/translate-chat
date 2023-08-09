@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math/rand"
 	"mime/multipart"
 	"os"
 	"os/exec"
@@ -120,4 +121,57 @@ func TranslateFlacFile(ctx context.Context, sourceLang, targetLang string, flacF
 		SourceLanguage: sourceLang,
 	}
 	return tm, nil
+}
+
+var adjectives = []string{
+	"silly",
+	"witty",
+	"bubbly",
+	"zany",
+	"cheeky",
+	"goofy",
+	"wacky",
+	"whimsical",
+	"quirky",
+	"hilarious",
+	"bizarre",
+	"absurd",
+	"lively",
+	"funky",
+	"zesty",
+	"jolly",
+	"playful",
+	"ridiculous",
+	"quizzical",
+	"eccentric",
+}
+
+var nouns = []string{
+	"banana",
+	"octopus",
+	"tornado",
+	"pajamas",
+	"cupcake",
+	"disco-ball",
+	"narwhal",
+	"pillow",
+	"llama",
+	"pickle",
+	"bubblegum",
+	"sock-puppet",
+	"chicken",
+	"sushi",
+	"unicorn",
+	"hotdog",
+	"gummy-bear",
+	"pineapple",
+	"hippo",
+	"marshmallow",
+}
+
+func GeneratePseudoID() string {
+	a1 := rand.Intn(19)
+	a2 := rand.Intn(19)
+	n := rand.Intn(19)
+	return fmt.Sprintf("%s-%s-%s", adjectives[a1], adjectives[a2], nouns[n])
 }
