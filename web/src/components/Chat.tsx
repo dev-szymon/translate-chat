@@ -1,6 +1,8 @@
 import clsx from "clsx";
 import {useEffect, useRef, useState} from "react";
 import LanguageSelector, {Language} from "./LanguageSelector";
+import {useConnection} from "../context/WebSocket.context";
+import {useUser} from "../context/User.context";
 
 type ApiResponse = {
     transcript: string;
@@ -13,13 +15,13 @@ type ApiResponse = {
 type FetchTranslationArgs = {
     file: Blob;
     sourceLanguage: Language["tag"];
-    targetLanguage: Language["tag"];
+    userId: string;
 };
-const fetchTranslation = async ({file, sourceLanguage, targetLanguage}: FetchTranslationArgs) => {
+const postAudioFile = async ({file, sourceLanguage, userId}: FetchTranslationArgs) => {
     const formData = new FormData();
     formData.append("file", file);
     formData.append("sourceLanguage", sourceLanguage);
-    formData.append("targetLanguage", targetLanguage);
+    formData.append("userId", userId);
 
     const postFileRequest = await fetch("http://localhost:8055/translate-file", {
         body: formData,
@@ -28,30 +30,28 @@ const fetchTranslation = async ({file, sourceLanguage, targetLanguage}: FetchTra
     return (await postFileRequest.json()) as ApiResponse | null;
 };
 
-const heatmapColors = [
-    "#FF0000",
-    "#FF3300",
-    "#FF6600",
-    "#FF9900",
-    "#FFCC00",
-    "#FFFF00",
-    "#CCFF00",
-    "#99FF00",
-    "#66FF00",
-    "#33FF00",
-    "#00FF00"
-];
+// const heatmapColors = [
+//     "#FF0000",
+//     "#FF3300",
+//     "#FF6600",
+//     "#FF9900",
+//     "#FFCC00",
+//     "#FFFF00",
+//     "#CCFF00",
+//     "#99FF00",
+//     "#66FF00",
+//     "#33FF00",
+//     "#00FF00"
+// ];
 
 export default function Chat() {
+    const {roomId} = useConnection();
     const [isRecording, setIsRecording] = useState<boolean>(false);
     const mediaRecorder = useRef<MediaRecorder | null>(null);
     const [stream, setStream] = useState<MediaStream | null>(null);
     const [audioChunks, setAudioChunks] = useState<Blob[]>([]);
     const [isPending, setIsPending] = useState<boolean>(false);
-    const [responses, setResponses] = useState<ApiResponse[]>([]);
-    const [leftLanguage, setLeftLanguage] = useState<Language | null>(null);
-    const [rightLanguage, setRightLanguage] = useState<Language | null>(null);
-    const [currentSpeaker, setCurrentSpeaker] = useState<"left" | "right" | null>(null);
+    const {user, setUser} = useUser();
 
     function decodeHtmlEntity(encodedString: string): string {
         const tempElement = document.createElement("div");
@@ -68,8 +68,7 @@ export default function Chat() {
         }
     }, [stream]);
 
-    function startRecording(speaker: "left" | "right") {
-        setCurrentSpeaker(speaker);
+    function startRecording() {
         setIsRecording(true);
         if (stream) {
             if (!mediaRecorder.current) {
@@ -94,51 +93,53 @@ export default function Chat() {
         setIsRecording(false);
     }
 
+    const {conn, messages} = useConnection();
     useEffect(() => {
-        if (isPending && !isRecording) {
+        if (isPending && !isRecording && user) {
             const file = new Blob(audioChunks, {type: "audio/webm"});
 
-            if (file.size > 0 && leftLanguage && rightLanguage) {
-                fetchTranslation({
+            if (file.size > 0 && user) {
+                conn.send(file);
+                setAudioChunks([]);
+                setIsPending(false);
+
+                postAudioFile({
                     file,
-                    sourceLanguage:
-                        currentSpeaker === "left" ? leftLanguage.tag : rightLanguage.tag,
-                    targetLanguage: currentSpeaker === "left" ? rightLanguage.tag : leftLanguage.tag
+                    sourceLanguage: user.language.tag,
+                    userId: user.id
                 })
                     .then((response) => {
                         if (response) {
-                            setResponses((current) => [...current, response]);
+                            return;
                         }
                     })
                     .finally(() => {
                         setAudioChunks([]);
                         setIsPending(false);
-                        setCurrentSpeaker(null);
                     });
             }
         }
-    }, [isRecording, isPending, audioChunks, leftLanguage, rightLanguage, currentSpeaker]);
+    }, [isRecording, isPending, audioChunks, user, conn]);
 
     return (
-        <div className="w-full flex justify-center">
+        <div className="w-full flex flex-col items-center">
+            <h1 className="text-xl font-medium">{roomId}</h1>
             <div className="flex flex-col p-2 gap-2 max-w-xl w-full">
                 <div className="flex flex-col justify-end gap-2 h-96 rounded-md border border-gray-300 p-2">
-                    {responses.map(({translation, confidence, source_language}) => (
+                    {messages.map((translation) => (
                         <div
                             key={translation}
                             className={clsx(
                                 "flex flex-col max-w-[75%] p-1 rounded-sm border border-gray-100",
-                                leftLanguage && source_language === leftLanguage.tag
-                                    ? "items-start self-start pr-2"
-                                    : "items-end self-end pl-2"
+                                "items-end self-end pl-2"
                             )}
                         >
                             <p className={"flex-1"}>{decodeHtmlEntity(translation)}</p>
                             <span className="flex-shrink-0 text-xs flex gap-1">
                                 <span>confidence</span>
-                                <span style={{color: heatmapColors[Math.floor(confidence * 10)]}}>
+                                {/* <span style={{color: heatmapColors[Math.floor(confidence * 10)]}}>
                                     {Math.floor(confidence * 100)}
-                                </span>
+                                </span> */}
                             </span>
                         </div>
                     ))}
@@ -146,19 +147,13 @@ export default function Chat() {
                 <div className="flex justify-between">
                     <div className="flex items-center gap-2">
                         <LanguageSelector
-                            currentLanguage={leftLanguage}
-                            onLanguageChange={(language) => setLeftLanguage(language)}
+                            currentLanguage={user!.language}
+                            onLanguageChange={(language) => setUser({...user!, language})}
                         />
                         <button
                             type="button"
-                            onClick={
-                                isRecording && currentSpeaker === "left"
-                                    ? stopRecording
-                                    : () => startRecording("left")
-                            }
-                            disabled={
-                                !leftLanguage || currentSpeaker === "right" || isPending || !stream
-                            }
+                            onClick={isRecording ? stopRecording : () => startRecording()}
+                            disabled={!user?.language || isPending || !stream}
                             className={clsx(
                                 "px-4 py-2 border text-white rounded  disabled:bg-gray-600 disabled:border-gray-200",
                                 isRecording
@@ -166,34 +161,8 @@ export default function Chat() {
                                     : "bg-sky-700 border-sky-400"
                             )}
                         >
-                            {isRecording && currentSpeaker === "left" ? "stop" : "speak"}
+                            {isRecording ? "stop" : "speak"}
                         </button>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                        <button
-                            type="button"
-                            onClick={
-                                isRecording && currentSpeaker === "right"
-                                    ? stopRecording
-                                    : () => startRecording("right")
-                            }
-                            disabled={
-                                !rightLanguage || currentSpeaker === "left" || isPending || !stream
-                            }
-                            className={clsx(
-                                "px-4 py-2 border text-white rounded  disabled:bg-gray-600 disabled:border-gray-200",
-                                isRecording
-                                    ? "bg-red-700 border-red-400"
-                                    : "bg-sky-700 border-sky-400"
-                            )}
-                        >
-                            {isRecording && currentSpeaker === "right" ? "stop" : "speak"}
-                        </button>
-                        <LanguageSelector
-                            currentLanguage={rightLanguage}
-                            onLanguageChange={(language) => setRightLanguage(language)}
-                        />
                     </div>
                 </div>
             </div>

@@ -5,7 +5,9 @@ go 1.20
 require (
 	cloud.google.com/go/speech v1.19.0
 	cloud.google.com/go/translate v1.8.2
+	github.com/google/uuid v1.3.0
 	github.com/joho/godotenv v1.5.1
+	golang.org/x/net v0.10.0
 )
 
 require (
@@ -21,7 +23,6 @@ require (
 	github.com/googleapis/gax-go/v2 v2.11.0 // indirect
 	go.opencensus.io v0.24.0 // indirect
 	golang.org/x/crypto v0.9.0 // indirect
-	golang.org/x/net v0.10.0 // indirect
 	golang.org/x/oauth2 v0.8.0 // indirect
 	golang.org/x/sys v0.8.0 // indirect
 	golang.org/x/text v0.9.0 // indirect

@@ -17,18 +17,20 @@ import (
 	"cloud.google.com/go/translate/apiv3/translatepb"
 )
 
-func ConvertFileToFlac(file multipart.File) ([]byte, error) {
-	b, err := io.ReadAll(file)
+func ConvertBytesToFlac(f []byte) ([]byte, error) {
+	b, err := io.ReadAll(bytes.NewReader(f))
 	if err != nil {
 		fmt.Println("Error while reading file: ", err)
 		return nil, err
 	}
+
 	cmd := exec.Command("./ffmpeg", "-i", "pipe:0", "-c:a", "flac", "-f", "flac", "-")
 
 	var (
 		output bytes.Buffer
 		errors bytes.Buffer
 	)
+
 	cmd.Stdin = bytes.NewReader(b)
 	cmd.Stdout = &output
 	cmd.Stderr = &errors
@@ -42,15 +44,33 @@ func ConvertFileToFlac(file multipart.File) ([]byte, error) {
 	return output.Bytes(), nil
 }
 
-type TranslatedMessage struct {
-	Transcript     string  `json:"transcript"`
-	Confidence     float32 `json:"confidence"`
-	Translation    string  `json:"translation"`
-	TargetLanguage string  `json:"target_language"`
-	SourceLanguage string  `json:"source_language"`
+func ConvertFileToFlac(file multipart.File) ([]byte, error) {
+	b, err := io.ReadAll(file)
+	if err != nil {
+		fmt.Println("Error while reading file: ", err)
+		return nil, err
+	}
+
+	f, err := ConvertBytesToFlac(b)
+	if err != nil {
+		fmt.Println("Error converting file: ", err)
+		return nil, err
+	}
+	return f, nil
 }
 
-func TranslateFlacFile(ctx context.Context, sourceLang, targetLang string, flacFile []byte) (*TranslatedMessage, error) {
+type TranslationResponse struct {
+	Translation    string `json:"translation"`
+	SourceLanguage string `json:"source_language"`
+	TargetLanguage string `json:"target_language"`
+}
+
+type TranscriptResponse struct {
+	Transcript string  `json:"transcript"`
+	Confidence float32 `json:"confidence"`
+}
+
+func TranscribeFlacFile(ctx context.Context, sourceLang string, flacFile []byte) (*TranscriptResponse, error) {
 	speechService, err := speech.NewClient(ctx)
 	if err != nil {
 		fmt.Println("Failed to initialise speech service:", err)
@@ -89,6 +109,15 @@ func TranslateFlacFile(ctx context.Context, sourceLang, targetLang string, flacF
 		return nil, fmt.Errorf("the service could not generate transcription")
 	}
 
+	tr := &TranscriptResponse{
+		Transcript: transcript.Transcript,
+		Confidence: transcript.Confidence,
+	}
+
+	return tr, nil
+}
+
+func TranslateTranscript(ctx context.Context, sourceLang, targetLang, transcript string) (*TranslationResponse, error) {
 	translateService, err := translate.NewTranslationClient(ctx)
 	if err != nil {
 		fmt.Println("Failed to initialise translation service", err)
@@ -102,7 +131,7 @@ func TranslateFlacFile(ctx context.Context, sourceLang, targetLang string, flacF
 	}
 
 	translationResponse, err := translateService.TranslateText(ctx, &translatepb.TranslateTextRequest{
-		Contents:           []string{transcript.Transcript},
+		Contents:           []string{transcript},
 		TargetLanguageCode: targetLang,
 		SourceLanguageCode: sourceLang,
 		Parent:             fmt.Sprintf("projects/%v", projectId),
@@ -113,14 +142,12 @@ func TranslateFlacFile(ctx context.Context, sourceLang, targetLang string, flacF
 		return nil, err
 	}
 
-	tm := &TranslatedMessage{
-		Transcript:     transcript.Transcript,
-		Confidence:     transcript.Confidence,
+	tr := &TranslationResponse{
 		Translation:    translationResponse.Translations[0].TranslatedText,
 		TargetLanguage: targetLang,
 		SourceLanguage: sourceLang,
 	}
-	return tm, nil
+	return tr, nil
 }
 
 var adjectives = []string{
@@ -169,7 +196,7 @@ var nouns = []string{
 	"marshmallow",
 }
 
-func GeneratePseudoID() string {
+func GenerateRoomName() string {
 	a1 := rand.Intn(19)
 	a2 := rand.Intn(19)
 	n := rand.Intn(19)
