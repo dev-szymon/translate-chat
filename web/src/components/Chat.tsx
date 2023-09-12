@@ -1,8 +1,8 @@
 import clsx from "clsx";
 import {useEffect, useRef, useState} from "react";
-import LanguageSelector, {Language} from "./LanguageSelector";
+import LanguageSelector, {Language, supportedLanguages} from "./LanguageSelector";
 import {useConnection} from "../context/WebSocket.context";
-import {useUser} from "../context/User.context";
+import {useChatContext} from "../context/Chat.context";
 
 type FetchTranslationArgs = {
     file: Blob;
@@ -42,8 +42,9 @@ export default function Chat() {
     const [stream, setStream] = useState<MediaStream | null>(null);
     const [audioChunks, setAudioChunks] = useState<Blob[]>([]);
     const [isPending, setIsPending] = useState<boolean>(false);
-    const {user, setUser, room, messages} = useUser();
+    const {state} = useChatContext();
 
+    const {currentUser, messages, room} = state;
     function decodeHtmlEntity(encodedString: string): string {
         const tempElement = document.createElement("div");
         tempElement.innerHTML = encodedString;
@@ -86,14 +87,14 @@ export default function Chat() {
 
     const {conn} = useConnection();
     useEffect(() => {
-        if (isPending && !isRecording && user) {
+        if (isPending && !isRecording && currentUser) {
             const file = new Blob(audioChunks, {type: "audio/webm"});
 
-            if (file.size > 0 && user) {
+            if (file.size > 0 && currentUser) {
                 postAudioFile({
                     file,
-                    sourceLanguage: user.language.tag,
-                    userId: user.id
+                    sourceLanguage: currentUser.language,
+                    userId: currentUser.id
                 })
                     .then((response) => {
                         if (response) {
@@ -106,7 +107,7 @@ export default function Chat() {
                     });
             }
         }
-    }, [isRecording, isPending, audioChunks, user, conn]);
+    }, [isRecording, isPending, audioChunks, currentUser, conn]);
 
     return (
         <div className="w-full flex flex-col items-center">
@@ -144,13 +145,15 @@ export default function Chat() {
                 <div className="flex justify-between">
                     <div className="flex items-center gap-2">
                         <LanguageSelector
-                            currentLanguage={user!.language}
-                            onLanguageChange={(language) => setUser({...user!, language})}
+                            currentLanguage={
+                                currentUser ? supportedLanguages[currentUser.language] : null
+                            }
+                            onLanguageChange={(language) => console.log(language)} //TODO
                         />
                         <button
                             type="button"
                             onClick={isRecording ? stopRecording : () => startRecording()}
-                            disabled={!user?.language || isPending || !stream}
+                            disabled={!currentUser?.language || isPending || !stream}
                             className={clsx(
                                 "px-4 py-2 border text-white rounded  disabled:bg-gray-600 disabled:border-gray-200",
                                 isRecording

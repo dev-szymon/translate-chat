@@ -6,17 +6,17 @@ export type Language = {
     tag: string;
     icon: string;
 };
-export const supportedLanguages: Language[] = [
-    {
+export const supportedLanguages: Record<Language["tag"], Language> = {
+    "it-IT": {
         name: "Italian",
         tag: "it-IT",
         icon: "🇮🇹"
     },
-    {name: "Polish", tag: "pl-PL", icon: "🇵🇱"},
-    {name: "English", tag: "en-US", icon: "🇺🇸"},
-    {name: "Spanish", tag: "es-ES", icon: "🇪🇸"},
-    {name: "German", tag: "de-DE", icon: "🇩🇪"}
-];
+    "pl-PL": {name: "Polish", tag: "pl-PL", icon: "🇵🇱"},
+    "en-US": {name: "English", tag: "en-US", icon: "🇺🇸"},
+    "es-ES": {name: "Spanish", tag: "es-ES", icon: "🇪🇸"},
+    "de-DE": {name: "German", tag: "de-DE", icon: "🇩🇪"}
+};
 
 interface SelectLanguageProps {
     className?: string;
@@ -42,7 +42,7 @@ export default function LanguageSelector({
                 )}
             </Menu.Button>
             <Menu.Items>
-                {supportedLanguages.map((language) => (
+                {Object.values(supportedLanguages).map((language) => (
                     <Menu.Item
                         key={language.tag}
                         className="cursor-pointer flex gap-1"

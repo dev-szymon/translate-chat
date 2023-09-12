@@ -1,12 +1,6 @@
 import {PropsWithChildren, createContext, useCallback, useContext, useEffect, useMemo} from "react";
-import {
-    User,
-    eventSchema,
-    newMessagePayloadSchema,
-    userJoinedRoomPayloadSchema
-} from "../service/ChatMessage";
-import {useUser} from "./User.context";
-import {supportedLanguages} from "../components/LanguageSelector";
+import {eventSchema} from "../service/ChatMessage";
+import {newMessagePayloadSchema, useChatContext, userJoinedPayloadSchema} from "./Chat.context";
 
 interface ConnectionContextValue {
     conn: WebSocket;
@@ -14,8 +8,10 @@ interface ConnectionContextValue {
 
 const ConnectionContext = createContext<ConnectionContextValue>({} as ConnectionContextValue);
 
-const useHandleEvent = () => {
-    const {setUser, setRoom, addMessage, room} = useUser();
+export function ConnectionContextProvider({children}: PropsWithChildren) {
+    const conn = useMemo(() => new WebSocket("ws://localhost:8055/ws"), []);
+
+    const {dispatch} = useChatContext();
 
     const handleEvent = useCallback(
         async (data: string) => {
@@ -26,41 +22,16 @@ const useHandleEvent = () => {
                 const {type, payload} = eventData;
                 switch (type) {
                     case "user-joined": {
-                        const validPayload = await userJoinedRoomPayloadSchema.validate(payload);
-                        const language = supportedLanguages.find(
-                            ({tag}) => tag === validPayload?.language
-                        );
-                        if (payload && language) {
-                            setRoom({
-                                id: validPayload.roomId,
-                                name: validPayload.roomName,
-                                users: validPayload.users
-                                    .map((user) => ({
-                                        ...user,
-                                        language: supportedLanguages.find(
-                                            ({tag}) => tag === user.language
-                                        )
-                                    }))
-                                    .filter((user): user is User => !!user.language)
-                            });
-                            setUser({
-                                id: validPayload.userId,
-                                language,
-                                username: validPayload.username
-                            });
+                        const validPayload = await userJoinedPayloadSchema.validate(payload);
+                        if (validPayload) {
+                            return dispatch({type: "user-joined", payload: validPayload});
                         }
                         return;
                     }
-                    case "translated-message": {
+                    case "new-message": {
                         const validPayload = await newMessagePayloadSchema.validate(payload);
-                        const sender = room?.users.find((user) => user.id === validPayload.userId);
-                        if (sender) {
-                            addMessage({
-                                transcript: validPayload.transcript,
-                                confidence: validPayload.confidence,
-                                translation: validPayload.translation ?? null,
-                                sender
-                            });
+                        if (validPayload) {
+                            return dispatch({type: "new-message", payload: validPayload});
                         }
                         return;
                     }
@@ -70,15 +41,8 @@ const useHandleEvent = () => {
                 }
             }
         },
-        [setUser, setRoom, addMessage, room?.users]
+        [dispatch]
     );
-    return {handleEvent};
-};
-
-export function ConnectionContextProvider({children}: PropsWithChildren) {
-    const conn = useMemo(() => new WebSocket("ws://localhost:8055/ws"), []);
-
-    const {handleEvent} = useHandleEvent();
     useEffect(() => {
         conn.onmessage = async ({data}) => handleEvent(data);
     }, [conn, handleEvent]);

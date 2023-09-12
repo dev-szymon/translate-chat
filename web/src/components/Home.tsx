@@ -1,6 +1,7 @@
-import LanguageSelector, {Language} from "./LanguageSelector";
+import LanguageSelector from "./LanguageSelector";
 import {useConnection} from "../context/WebSocket.context";
 import {useState} from "react";
+import {Language} from "../context/Chat.context";
 
 type JoinRoomMessage = {
     type: "join-room";
