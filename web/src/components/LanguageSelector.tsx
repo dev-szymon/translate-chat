@@ -6,7 +6,7 @@ export type Language = {
     tag: string;
     icon: string;
 };
-const supportedLanguages: Language[] = [
+export const supportedLanguages: Language[] = [
     {
         name: "Italian",
         tag: "it-IT",

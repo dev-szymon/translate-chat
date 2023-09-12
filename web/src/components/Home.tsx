@@ -1,17 +1,19 @@
-import LanguageSelector from "./LanguageSelector";
+import LanguageSelector, {Language} from "./LanguageSelector";
 import {useConnection} from "../context/WebSocket.context";
-import {useUser} from "../context/User.context";
+import {useState} from "react";
 
 type JoinRoomMessage = {
     type: "join-room";
-    username: string;
-    language: string;
-    roomId?: string;
+    payload: {
+        username: string;
+        language: string;
+        roomId?: string;
+    };
 };
 
 export default function Home() {
     const {conn} = useConnection();
-    const {language, setLanguage, setUsername} = useUser();
+    const [language, setLanguage] = useState<Language | null>(null);
 
     const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault();
@@ -25,11 +27,12 @@ export default function Home() {
 
         const message: JoinRoomMessage = {
             type: "join-room",
-            username,
-            roomId,
-            language: language.tag
+            payload: {
+                username,
+                roomId,
+                language: language.tag
+            }
         };
-        setUsername(username);
         conn.send(JSON.stringify(message));
     };
 

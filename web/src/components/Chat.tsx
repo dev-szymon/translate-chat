@@ -4,14 +4,6 @@ import LanguageSelector, {Language} from "./LanguageSelector";
 import {useConnection} from "../context/WebSocket.context";
 import {useUser} from "../context/User.context";
 
-type ApiResponse = {
-    transcript: string;
-    confidence: number;
-    translation: string;
-    target_language: string;
-    source_language: string;
-};
-
 type FetchTranslationArgs = {
     file: Blob;
     sourceLanguage: Language["tag"];
@@ -27,31 +19,30 @@ const postAudioFile = async ({file, sourceLanguage, userId}: FetchTranslationArg
         body: formData,
         method: "POST"
     });
-    return (await postFileRequest.json()) as ApiResponse | null;
+    return await postFileRequest.json();
 };
 
-// const heatmapColors = [
-//     "#FF0000",
-//     "#FF3300",
-//     "#FF6600",
-//     "#FF9900",
-//     "#FFCC00",
-//     "#FFFF00",
-//     "#CCFF00",
-//     "#99FF00",
-//     "#66FF00",
-//     "#33FF00",
-//     "#00FF00"
-// ];
+const heatmapColors = [
+    "#FF0000",
+    "#FF3300",
+    "#FF6600",
+    "#FF9900",
+    "#FFCC00",
+    "#FFFF00",
+    "#CCFF00",
+    "#99FF00",
+    "#66FF00",
+    "#33FF00",
+    "#00FF00"
+];
 
 export default function Chat() {
-    const {roomId} = useConnection();
     const [isRecording, setIsRecording] = useState<boolean>(false);
     const mediaRecorder = useRef<MediaRecorder | null>(null);
     const [stream, setStream] = useState<MediaStream | null>(null);
     const [audioChunks, setAudioChunks] = useState<Blob[]>([]);
     const [isPending, setIsPending] = useState<boolean>(false);
-    const {user, setUser} = useUser();
+    const {user, setUser, room, messages} = useUser();
 
     function decodeHtmlEntity(encodedString: string): string {
         const tempElement = document.createElement("div");
@@ -93,16 +84,12 @@ export default function Chat() {
         setIsRecording(false);
     }
 
-    const {conn, messages} = useConnection();
+    const {conn} = useConnection();
     useEffect(() => {
         if (isPending && !isRecording && user) {
             const file = new Blob(audioChunks, {type: "audio/webm"});
 
             if (file.size > 0 && user) {
-                conn.send(file);
-                setAudioChunks([]);
-                setIsPending(false);
-
                 postAudioFile({
                     file,
                     sourceLanguage: user.language.tag,
@@ -123,23 +110,33 @@ export default function Chat() {
 
     return (
         <div className="w-full flex flex-col items-center">
-            <h1 className="text-xl font-medium">{roomId}</h1>
+            <h1 className="text-xl font-medium">{room?.name}</h1>
             <div className="flex flex-col p-2 gap-2 max-w-xl w-full">
                 <div className="flex flex-col justify-end gap-2 h-96 rounded-md border border-gray-300 p-2">
-                    {messages.map((translation) => (
+                    {messages.map((message) => (
                         <div
-                            key={translation}
+                            key={message.transcript}
                             className={clsx(
                                 "flex flex-col max-w-[75%] p-1 rounded-sm border border-gray-100",
                                 "items-end self-end pl-2"
                             )}
                         >
-                            <p className={"flex-1"}>{decodeHtmlEntity(translation)}</p>
+                            <p className={"flex-1"}>
+                                {decodeHtmlEntity(
+                                    message.translation?.length
+                                        ? message.translation
+                                        : message.transcript
+                                )}
+                            </p>
                             <span className="flex-shrink-0 text-xs flex gap-1">
                                 <span>confidence</span>
-                                {/* <span style={{color: heatmapColors[Math.floor(confidence * 10)]}}>
-                                    {Math.floor(confidence * 100)}
-                                </span> */}
+                                <span
+                                    style={{
+                                        color: heatmapColors[Math.floor(message.confidence * 10)]
+                                    }}
+                                >
+                                    {Math.floor(message.confidence * 100)}
+                                </span>
                             </span>
                         </div>
                     ))}

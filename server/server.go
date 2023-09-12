@@ -6,43 +6,34 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"sync"
 
 	"github.com/dev-szymon/translate-chat/server/lib"
 	"github.com/google/uuid"
 	"golang.org/x/net/websocket"
 )
 
-type apiError struct {
-	err    string
-	status int
-}
-
-func (e *apiError) Error() string {
-	return e.err
-}
-
-func WriteJSON(w http.ResponseWriter, status int, value any) {
-	w.WriteHeader(status)
-	w.Header().Add("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(value)
-}
-
 type Server struct {
-	id         string
-	rooms      map[string]*Room
-	users      map[*User]bool
-	register   chan *User
-	unregister chan *User
+	id      string
+	roomsMu sync.Mutex
+	rooms   map[string]*Room
+	usersMu sync.Mutex
+	users   map[*User]bool
 }
 
 func NewServer() *Server {
 	return &Server{
-		id:         uuid.NewString(),
-		rooms:      make(map[string]*Room),
-		users:      make(map[*User]bool),
-		register:   make(chan *User),
-		unregister: make(chan *User),
+		id:    uuid.NewString(),
+		rooms: make(map[string]*Room),
+		users: make(map[*User]bool),
 	}
+}
+
+type SuccessResponse struct {
+	Message string `json:"message"`
+}
+type ErrorResponse struct {
+	Error string `json:"error"`
 }
 
 func (s *Server) handleTranslateFile() func(w http.ResponseWriter, r *http.Request) {
@@ -50,12 +41,12 @@ func (s *Server) handleTranslateFile() func(w http.ResponseWriter, r *http.Reque
 
 		ctx := context.Background()
 		if r.Method == "POST" {
+			encoder := json.NewEncoder(w)
 			userId := r.FormValue("userId")
 			if userId == "" {
-				WriteJSON(w, http.StatusUnprocessableEntity, &apiError{
-					err:    "UserId missing",
-					status: http.StatusUnprocessableEntity,
-				})
+				fmt.Println("id missing")
+				encoder.Encode(&ErrorResponse{Error: "user not found"})
+				return
 			}
 			var user *User
 
@@ -66,50 +57,47 @@ func (s *Server) handleTranslateFile() func(w http.ResponseWriter, r *http.Reque
 				}
 			}
 
+			if user == nil {
+				encoder.Encode(&ErrorResponse{Error: "user not found"})
+				return
+			}
+
 			file, _, err := r.FormFile("file")
 			if err != nil {
 				fmt.Println("Failed to parse form file:", err)
-				WriteJSON(w, http.StatusInternalServerError, &apiError{
-					err:    "Error processing audio file.",
-					status: http.StatusInternalServerError,
-				})
+				encoder.Encode(&ErrorResponse{Error: "error parsing file"})
+				return
 			}
 			defer file.Close()
 
 			flacFile, err := lib.ConvertFileToFlac(file)
 			if err != nil {
 				fmt.Println("Failed to convert audio file", err)
-				WriteJSON(w, http.StatusInternalServerError, &apiError{
-					err:    "Error processing audio file.",
-					status: http.StatusInternalServerError,
-				})
+				encoder.Encode(&ErrorResponse{Error: "error"})
+				return
 			}
 
 			transcript, err := lib.TranscribeFlacFile(ctx, user.Language, flacFile)
 			if err != nil {
 				fmt.Println("failed to translate audio file", err)
-				WriteJSON(w, http.StatusInternalServerError, &apiError{
-					err:    "Error transcribing audio file.",
-					status: http.StatusInternalServerError,
-				})
+				encoder.Encode(&ErrorResponse{Error: "error"})
+				return
 			}
 
-			user.currentRoom.broadcastCh <- &BroadcastTrasncript{Transcript: transcript, FromUser: user}
+			user.currentRoom.broadcastCh <- &BroadcastPayload{
+				TranscriptResponse: transcript,
+				FromUser:           user,
+			}
 
-			WriteJSON(w, http.StatusOK, transcript)
+			encoder.Encode(&SuccessResponse{Message: "ok"})
 		}
 	}
 }
 
 func (s *Server) serveWS(conn *websocket.Conn) {
 	fmt.Println("New connection from: ", conn.RemoteAddr())
-	user := &User{
-		Id:          uuid.NewString(),
-		conn:        conn,
-		currentRoom: nil,
-		messageCh:   make(chan []byte, 512),
-	}
-	s.users[user] = true
+
+	user := s.createUser(conn)
 
 	buf := make([]byte, 512)
 	for {
@@ -118,24 +106,31 @@ func (s *Server) serveWS(conn *websocket.Conn) {
 			if err == io.EOF {
 				break
 			}
-			conn.Write([]byte("wrong message format"))
+			user.sendEvent(errorMessage, &ErrorPayload{Message: "Unable to read from buffer"})
 			continue
 		}
 		msgBytes := buf[:n]
 
-		var msg Message
-		err = json.Unmarshal(msgBytes, &msg)
+		var event Event
+		err = json.Unmarshal(msgBytes, &event)
 		if err != nil {
-			conn.Write([]byte("wrong message format"))
+			user.sendEvent(errorMessage, &ErrorPayload{Message: "Unable to unmarshal event payload"})
 		}
 
-		switch msg.Type {
+		switch event.Type {
 		case joinRoom:
+			var payload JoinRoomPayload
 			var room *Room
-			if msg.RoomID != "" {
-				for id := range s.rooms {
-					if id == msg.RoomID {
-						room = s.rooms[id]
+			err := json.Unmarshal(event.Payload, &payload)
+			if err != nil {
+				user.sendEvent(errorMessage, &ErrorPayload{Message: "Unable to unmarshal join-room payload"})
+			}
+
+			room = s.rooms[payload.RoomId]
+			if room == nil {
+				for _, r := range s.rooms {
+					if r.name == payload.RoomId {
+						room = r
 						break
 					}
 				}
@@ -143,26 +138,46 @@ func (s *Server) serveWS(conn *websocket.Conn) {
 			if room == nil {
 				room = s.createRoom()
 			}
-			user.Language = msg.Language
-			user.Username = msg.Username
+
+			user.Language = payload.Language
+			user.Username = payload.Username
 			room.joinCh <- user
 		case leaveRoom:
 			user.currentRoom.leaveCh <- user
 		case updateLanguage:
-			if msg.Language == "" {
-				conn.Write([]byte("Language not found"))
+			var payload UpdateLanguagePayload
+			err := json.Unmarshal(event.Payload, &payload)
+			if err != nil {
+				user.sendEvent(errorMessage, &ErrorPayload{Message: "wrong message format"})
 			}
-			user.Language = msg.Language //TODO validate
+			user.Language = payload.Language //TODO validate
 		}
 	}
 }
 
+func (s *Server) createUser(conn *websocket.Conn) *User {
+	s.usersMu.Lock()
+	defer s.usersMu.Unlock()
+
+	user := &User{
+		Id:          uuid.NewString(),
+		conn:        conn,
+		currentRoom: nil,
+		messageCh:   make(chan []byte, 512),
+	}
+	s.users[user] = true
+
+	return user
+}
+
 func (s *Server) createRoom() *Room {
+	s.roomsMu.Lock()
+	defer s.roomsMu.Unlock()
 	room := &Room{
 		id:          uuid.NewString(),
 		name:        lib.GenerateRoomName(),
 		users:       make(map[*User]bool),
-		broadcastCh: make(chan *BroadcastTrasncript),
+		broadcastCh: make(chan *BroadcastPayload),
 		joinCh:      make(chan *User),
 		leaveCh:     make(chan *User),
 	}

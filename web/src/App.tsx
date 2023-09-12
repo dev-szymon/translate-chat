@@ -1,10 +1,10 @@
 import Chat from "./components/Chat";
 import Home from "./components/Home";
-import {useConnection} from "./context/WebSocket.context";
+import {useUser} from "./context/User.context";
 
 function App() {
-    const {roomId} = useConnection();
-    return <div>{roomId ? <Chat /> : <Home />}</div>;
+    const {room} = useUser();
+    return <>{room ? <Chat /> : <Home />}</>;
 }
 
 export default App;
