@@ -137,6 +137,7 @@ func (s *Server) serveWS(conn *websocket.Conn) {
 			}
 			if room == nil {
 				room = s.createRoom()
+				go room.run()
 			}
 
 			user.Language = payload.Language
@@ -175,7 +176,6 @@ func (s *Server) createRoom() *Room {
 		leaveCh:     make(chan *User),
 	}
 
-	go room.run()
 	s.rooms[room.id] = room
 
 	return room
