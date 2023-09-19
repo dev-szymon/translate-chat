@@ -1,6 +1,13 @@
 import {PropsWithChildren, createContext, useCallback, useContext, useEffect, useMemo} from "react";
-import {eventSchema} from "../service/ChatMessage";
 import {newMessagePayloadSchema, useChatContext, userJoinedPayloadSchema} from "./Chat.context";
+import {object, string} from "yup";
+
+export const eventSchema = object({type: string().required(), payload: object().required()});
+
+export const errorPayloadSchema = object({
+    message: string(),
+    error: string()
+});
 
 interface ConnectionContextValue {
     conn: WebSocket;

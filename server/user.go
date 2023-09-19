@@ -7,6 +7,7 @@ import (
 	"log"
 
 	"github.com/dev-szymon/translate-chat/server/lib"
+	"github.com/google/uuid"
 	"golang.org/x/net/websocket"
 )
 
@@ -19,39 +20,88 @@ type User struct {
 	messageCh   chan []byte
 }
 
-func (u *User) sendTranslation(broadcastTranscript *BroadcastPayload) {
+func (u *User) sendTranslation(bp *BroadcastPayload) {
 	ctx := context.Background()
-	p := &TranslatedMessagePayload{
-		RoomId:     u.currentRoom.id,
-		UserId:     broadcastTranscript.FromUser.Id,
-		Transcript: broadcastTranscript.Transcript,
-		Confidence: broadcastTranscript.Confidence,
+	m := &Message{
+		Id:         uuid.NewString(),
+		SenderId:   bp.sender.Id,
+		Transcript: bp.Transcript,
+		Confidence: bp.Confidence,
 	}
 
-	if broadcastTranscript.FromUser.Language != u.Language {
-		translation, err := lib.TranslateTranscript(ctx, broadcastTranscript.FromUser.Language, u.Language, broadcastTranscript.Transcript)
+	if bp.sender.Language != u.Language {
+		translation, err := lib.TranslateTranscript(ctx, bp.sender.Language, u.Language, bp.Transcript)
 		if err != nil {
-			fmt.Println("Error translating file.")
+			fmt.Println("Error translating file: ", err)
+			u.sendEvent(errorEvent, &ErrorPayload{Message: "Error while translating message", Error: err.Error()})
+			return
 		}
-		p.Translation = &translation.Translation
+		m.Translation = &translation.Translation
 	}
 
-	u.sendEvent(translatedMessage, p)
+	p := &NewMessagePayload{
+		Message: m,
+	}
+
+	u.sendEvent(newMessageEvent, p)
+}
+
+func parseEvent(eventType string, payload interface{}) (*Event, error) {
+	switch eventType {
+	case userJoinedEvent:
+		p, ok := payload.(*UserJoinedPayload)
+		if !ok {
+			return nil, fmt.Errorf("error parsing event %s with payload: %v", eventType, payload)
+		}
+		b, err := json.Marshal(p)
+		if err != nil {
+			return nil, err
+		}
+		e := &Event{
+			Type:    eventType,
+			Payload: b}
+		return e, nil
+	case newMessageEvent:
+		p, ok := payload.(*NewMessagePayload)
+		if !ok {
+			return nil, fmt.Errorf("error parsing event %s with payload: %v", eventType, payload)
+		}
+		b, err := json.Marshal(p)
+		if err != nil {
+			return nil, err
+		}
+		e := &Event{
+			Type:    eventType,
+			Payload: b}
+		return e, nil
+	case errorEvent:
+		p, ok := payload.(*ErrorPayload)
+		if !ok {
+			return nil, fmt.Errorf("error parsing event %s with payload: %v", eventType, payload)
+		}
+		b, err := json.Marshal(p)
+		if err != nil {
+			return nil, err
+		}
+		e := &Event{
+			Type:    eventType,
+			Payload: b}
+		return e, nil
+	default:
+		return nil, fmt.Errorf("eventType not recognised: %v", eventType)
+	}
 }
 
 func (u *User) sendEvent(eventType string, payload interface{}) {
-	p, err := json.Marshal(payload)
+	event, err := parseEvent(eventType, payload)
 	if err != nil {
-		log.Fatalf("Something went wrong sending event to user: %v", err)
+		log.Fatalf("Someting went wrong parsing event: %v", err)
 	}
-	event, err := json.Marshal(&Event{
-		Type:    eventType,
-		Payload: p,
-	})
+
+	b, err := json.Marshal(event)
 	if err != nil {
 		log.Fatalf("Something went wrong sending event to user: %v", err)
 	}
 
-	u.conn.Write(event)
-
+	u.conn.Write(b)
 }

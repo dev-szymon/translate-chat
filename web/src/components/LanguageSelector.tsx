@@ -30,22 +30,31 @@ export default function LanguageSelector({
     onLanguageChange
 }: SelectLanguageProps) {
     return (
-        <Menu as="div" className={clsx("", className)}>
-            <Menu.Button>
+        <Menu
+            as="div"
+            className={clsx(
+                "border border-slate-500 relative flex h-fit items-center rounded",
+                className
+            )}
+        >
+            <Menu.Button className="w-full px-4 py-2 h-full flex items-center">
                 {currentLanguage ? (
-                    <div className="flex gap-1">
-                        <span className="text-lg">{currentLanguage.icon}</span>
+                    <div className="flex gap-2">
+                        <span className="text-lg leading-6">{currentLanguage.icon}</span>
                         <span className="text-base">{currentLanguage.name}</span>
                     </div>
                 ) : (
                     <span>Select language</span>
                 )}
             </Menu.Button>
-            <Menu.Items>
+            <Menu.Items className="absolute bg-slate-600 top-full overflow-hidden mt-2 w-full rounded left-0">
                 {Object.values(supportedLanguages).map((language) => (
                     <Menu.Item
                         key={language.tag}
-                        className="cursor-pointer flex gap-1"
+                        className={clsx(
+                            "cursor-pointer flex gap-1 py-2 px-2",
+                            currentLanguage?.tag === language.tag ? "bg-slate-400" : "bg-slate-600"
+                        )}
                         as="div"
                         onClick={() => onLanguageChange(language)}
                     >

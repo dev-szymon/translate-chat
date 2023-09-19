@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"sync"
 
 	"github.com/dev-szymon/translate-chat/server/lib"
@@ -9,8 +8,7 @@ import (
 
 type BroadcastPayload struct {
 	*lib.TranscriptResponse
-
-	FromUser *User `json:"from_user"`
+	sender *User
 }
 type Room struct {
 	id          string
@@ -25,32 +23,33 @@ type Room struct {
 func (r *Room) run() {
 	for {
 		select {
-		case user := <-r.joinCh:
+		case newUser := <-r.joinCh:
 			r.usersMu.Lock()
-			r.users[user] = true
+			r.users[newUser] = true
 			r.usersMu.Unlock()
-			user.currentRoom = r
-			usersInRoom := []User{}
-			for roomUser := range r.users {
-				usersInRoom = append(usersInRoom, *roomUser)
+			newUser.currentRoom = r
+
+			usersInRoom := []*User{}
+			for u := range r.users {
+				usersInRoom = append(usersInRoom, u)
 			}
 
-			for userAwaitingMessage := range r.users {
-				userAwaitingMessage.sendEvent(userJoined, &UserJoinedRoomPayload{
-					UserId:   user.Id,
-					Username: user.Username,
-					Language: user.Language,
-					RoomId:   r.id,
-					RoomName: r.name,
-					Users:    usersInRoom,
+			for u := range r.users {
+				go u.sendEvent(userJoinedEvent, &UserJoinedPayload{
+					NewUser: newUser,
+					Room: &CurrentRoom{
+						Id:    r.id,
+						Name:  r.name,
+						Users: usersInRoom,
+					},
 				})
 			}
 
 		case transcript := <-r.broadcastCh:
 			for user := range r.users {
-				fmt.Println(user.Id)
 				go user.sendTranslation(transcript)
 			}
+
 		case user := <-r.leaveCh:
 			r.usersMu.Lock()
 			user.currentRoom = nil

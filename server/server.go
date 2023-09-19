@@ -86,7 +86,7 @@ func (s *Server) handleTranslateFile() func(w http.ResponseWriter, r *http.Reque
 
 			user.currentRoom.broadcastCh <- &BroadcastPayload{
 				TranscriptResponse: transcript,
-				FromUser:           user,
+				sender:             user,
 			}
 
 			encoder.Encode(&SuccessResponse{Message: "ok"})
@@ -106,7 +106,7 @@ func (s *Server) serveWS(conn *websocket.Conn) {
 			if err == io.EOF {
 				break
 			}
-			user.sendEvent(errorMessage, &ErrorPayload{Message: "Unable to read from buffer"})
+			user.sendEvent(errorEvent, &ErrorPayload{Message: "Unable to read from buffer", Error: err.Error()})
 			continue
 		}
 		msgBytes := buf[:n]
@@ -114,7 +114,7 @@ func (s *Server) serveWS(conn *websocket.Conn) {
 		var event Event
 		err = json.Unmarshal(msgBytes, &event)
 		if err != nil {
-			user.sendEvent(errorMessage, &ErrorPayload{Message: "Unable to unmarshal event payload"})
+			user.sendEvent(errorEvent, &ErrorPayload{Message: "Unable to unmarshal event payload", Error: err.Error()})
 		}
 
 		switch event.Type {
@@ -123,7 +123,7 @@ func (s *Server) serveWS(conn *websocket.Conn) {
 			var room *Room
 			err := json.Unmarshal(event.Payload, &payload)
 			if err != nil {
-				user.sendEvent(errorMessage, &ErrorPayload{Message: "Unable to unmarshal join-room payload"})
+				user.sendEvent(errorEvent, &ErrorPayload{Message: "Unable to unmarshal join-room payload", Error: err.Error()})
 			}
 
 			room = s.rooms[payload.RoomId]
@@ -144,13 +144,6 @@ func (s *Server) serveWS(conn *websocket.Conn) {
 			room.joinCh <- user
 		case leaveRoom:
 			user.currentRoom.leaveCh <- user
-		case updateLanguage:
-			var payload UpdateLanguagePayload
-			err := json.Unmarshal(event.Payload, &payload)
-			if err != nil {
-				user.sendEvent(errorMessage, &ErrorPayload{Message: "wrong message format"})
-			}
-			user.Language = payload.Language //TODO validate
 		}
 	}
 }

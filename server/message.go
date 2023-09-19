@@ -3,13 +3,11 @@ package main
 import "encoding/json"
 
 const (
-	errorMessage         = "error"
-	joinRoom             = "join-room"
-	userJoined           = "user-joined"
-	joinRoomConfirmation = "join-room-confirmation"
-	leaveRoom            = "leave-room"
-	updateLanguage       = "update-language"
-	translatedMessage    = "translated-message"
+	errorEvent      = "error"
+	joinRoom        = "join-room"
+	userJoinedEvent = "user-joined"
+	newMessageEvent = "new-message"
+	leaveRoom       = "leave-room"
 )
 
 type Event struct {
@@ -17,23 +15,27 @@ type Event struct {
 	Payload json.RawMessage `json:"payload"`
 }
 
-type ErrorPayload struct {
-	Message string `json:"message"`
+type Message struct {
+	Id          string  `json:"id"`
+	Transcript  string  `json:"transcript"`
+	Confidence  float32 `json:"confidence"`
+	Translation *string `json:"translation"`
+	SenderId    string  `json:"senderId"`
 }
 
-type JoinRoomPayload struct {
-	Username string `json:"username"`
-	Language string `json:"language"`
-	RoomId   string `json:"roomId"`
+type CurrentRoom struct {
+	Id    string  `json:"id"`
+	Name  string  `json:"name"`
+	Users []*User `json:"users"`
 }
 
-type UserJoinedRoomPayload struct {
-	UserId   string `json:"userId"`
-	Username string `json:"username"`
-	Language string `json:"language"`
-	RoomId   string `json:"roomId"`
-	RoomName string `json:"roomName"`
-	Users    []User `json:"users"`
+type UserJoinedPayload struct {
+	NewUser *User        `json:"newUser"`
+	Room    *CurrentRoom `json:"room"`
+}
+
+type NewMessagePayload struct {
+	Message *Message `json:"message"`
 }
 
 type LeaveRoomPayload struct {
@@ -43,15 +45,13 @@ type UserLeftRoomMessage struct {
 	UserId string `json:"userId"`
 }
 
-type UpdateLanguagePayload struct {
-	UserId   string `json:"userId"`
-	Language string `json:"language"`
+type ErrorPayload struct {
+	Message string `json:"message"`
+	Error   string `json:"error"`
 }
 
-type TranslatedMessagePayload struct {
-	Transcript  string  `json:"transcript"`
-	Confidence  float32 `json:"confidence"`
-	Translation *string `json:"translation"`
-	UserId      string  `json:"userId"`
-	RoomId      string  `json:"roomId"`
+type JoinRoomPayload struct {
+	Username string `json:"username"`
+	Language string `json:"language"`
+	RoomId   string `json:"roomId"`
 }
