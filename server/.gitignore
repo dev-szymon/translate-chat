@@ -2,3 +2,4 @@ google_application_credentials.json
 public/build.css
 
 cmd
+.env
