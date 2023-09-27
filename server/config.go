@@ -20,13 +20,15 @@ func loadEnv() error {
 	}
 	credsFilePath := os.Getenv("GOOGLE_APPLICATION_CREDENTIALS")
 	if credsFilePath == "" {
-		return fmt.Errorf("GOOGLE_APPLICATION_CREDENTIALS enviromental variable missing")
+		fmt.Printf("GOOGLE_APPLICATION_CREDENTIALS enviromental variable missing. Using default %s\n", DEFAULT_GOOGLE_APPLICATION_CREDENTIALS)
+		credsFilePath = DEFAULT_GOOGLE_APPLICATION_CREDENTIALS
 	}
 	credsFile, err := os.Open(credsFilePath)
 	if err != nil {
 		return err
-
 	}
+	defer credsFile.Close()
+
 	c, err := io.ReadAll(credsFile)
 	if err != nil {
 		return err

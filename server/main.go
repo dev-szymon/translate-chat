@@ -9,11 +9,18 @@ import (
 	"golang.org/x/net/websocket"
 )
 
+const (
+	DEFAULT_WEB_URL                        = "http://localhost:5173"
+	DEFAULT_GOOGLE_APPLICATION_CREDENTIALS = "./google_application_credentials.json"
+)
+
 func enableCors(handler http.HandlerFunc) http.HandlerFunc {
 	webUrl := os.Getenv("WEB_URL")
 	if webUrl == "" {
-		log.Fatal("WEB_URL environmental variable missing.")
+		fmt.Printf("WEB_URL environmental variable missing. Using default: %s\n", DEFAULT_WEB_URL)
+		webUrl = DEFAULT_WEB_URL
 	}
+
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", webUrl)
 		w.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS")

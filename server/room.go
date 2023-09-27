@@ -47,7 +47,7 @@ func (r *Room) run() {
 
 		case transcript := <-r.broadcastCh:
 			for user := range r.users {
-				go user.sendTranslation(transcript)
+				go user.sendNewMessage(transcript)
 			}
 
 		case user := <-r.leaveCh:

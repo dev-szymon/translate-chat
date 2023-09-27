@@ -20,7 +20,7 @@ type User struct {
 	messageCh   chan []byte
 }
 
-func (u *User) sendTranslation(bp *BroadcastPayload) {
+func (u *User) sendNewMessage(bp *BroadcastPayload) {
 	ctx := context.Background()
 	m := &Message{
 		Id:         uuid.NewString(),

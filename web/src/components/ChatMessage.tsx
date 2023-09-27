@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import {Message, useChatContext} from "../context/Chat.context";
+import {Message, User} from "../context/Chat.context";
 import {supportedLanguages} from "./LanguageSelector";
 
 const heatmapColors = [
@@ -22,19 +22,19 @@ function decodeHtmlEntity(encodedString: string): string {
     return tempElement.textContent ?? "";
 }
 
-const ChatMessage: React.FC<{message: Message}> = ({message}) => {
-    const {
-        state: {currentUser, room}
-    } = useChatContext();
-
-    const sender = room?.users.find(({id}) => id === message.senderId);
-    if (!room || !sender) return null;
+interface ChatMessageProps {
+    sender: User;
+    message: Message;
+    isOwn: boolean;
+}
+const ChatMessage: React.FC<ChatMessageProps> = ({message, sender, isOwn}) => {
+    const confidenceColor = heatmapColors[Math.floor(message.confidence * 10)];
+    const language = supportedLanguages[sender.language];
     return (
         <div
             className={clsx(
                 "flex flex-col max-w-[75%] p-1 text-slate-50",
-
-                message.senderId === currentUser?.id && "items-end self-end pl-2"
+                isOwn && "items-end self-end pl-2"
             )}
         >
             <div className="flex gap-2">
@@ -42,15 +42,13 @@ const ChatMessage: React.FC<{message: Message}> = ({message}) => {
                     <span className="text-slate-400">confidence</span>
                     <span
                         style={{
-                            color: heatmapColors[Math.floor(message.confidence * 10)]
+                            color: confidenceColor
                         }}
                     >
                         {Math.floor(message.confidence * 100)}
                     </span>
                 </span>
-                <span className="text-xs">{`${supportedLanguages[sender.language].icon} ${
-                    sender.username
-                }`}</span>
+                <span className="text-xs">{`${language.icon} ${sender.username}`}</span>
             </div>
             <p className="flex-1 text-lg">
                 {decodeHtmlEntity(

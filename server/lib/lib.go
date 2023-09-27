@@ -24,7 +24,7 @@ func ConvertBytesToFlac(f []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	cmd := exec.Command("./ffmpeg", "-i", "pipe:0", "-c:a", "flac", "-f", "flac", "-")
+	cmd := exec.Command("ffmpeg", "-i", "pipe:0", "-c:a", "flac", "-f", "flac", "-")
 
 	var (
 		output bytes.Buffer

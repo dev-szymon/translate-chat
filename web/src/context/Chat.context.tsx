@@ -58,6 +58,7 @@ type NewMessageAction = {
 export type ChatState = {
     currentUser: User | null;
     room: Room | null;
+    roomUsers: Record<User["id"], User>;
     messages: Array<Message>;
 };
 export type Action = UserJoinedAction | NewMessageAction;
@@ -65,10 +66,20 @@ export type Action = UserJoinedAction | NewMessageAction;
 function chatReducer(state: ChatState, action: Action): ChatState {
     switch (action.type) {
         case "user-joined": {
-            if (!state.currentUser && !state.room) {
-                return {...state, currentUser: action.payload.newUser, room: action.payload.room};
-            }
-            return {...state, room: action.payload.room};
+            const roomUsers = action.payload.room.users.reduce(
+                (users: ChatState["roomUsers"], curr: User) => {
+                    return {...users, [curr.id]: curr};
+                },
+                {}
+            );
+            const room = action.payload.room;
+
+            return {
+                ...state,
+                currentUser: !state.currentUser ? action.payload.newUser : state.currentUser,
+                room,
+                roomUsers
+            };
         }
         case "new-message": {
             return {...state, messages: [...state.messages, action.payload.message]};
@@ -80,6 +91,7 @@ function chatReducer(state: ChatState, action: Action): ChatState {
 const initialChatState: ChatState = {
     currentUser: null,
     room: null,
+    roomUsers: {},
     messages: []
 };
 type ChatContextValue = {state: ChatState; dispatch: Dispatch<Action>};

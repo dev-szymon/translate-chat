@@ -4,10 +4,10 @@ import {useChatContext} from "./context/Chat.context";
 
 function App() {
     const {
-        state: {room}
+        state: {room, currentUser}
     } = useChatContext();
 
-    if (!room) return <Home />;
+    if (!room || !currentUser) return <Home />;
 
     return <Chat />;
 }
