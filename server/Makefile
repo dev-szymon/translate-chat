@@ -1,5 +1,5 @@
 build:
-	go build -o ./cmd
+	go build -o ./bin
 start: 
 	./cmd/server
 docker_build: 

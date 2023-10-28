@@ -1,4 +1,4 @@
-package main
+package core
 
 import (
 	"encoding/json"
@@ -13,11 +13,23 @@ type googleAppCredentials struct {
 	ProjectID string `json:"project_id"`
 }
 
-func loadEnv() error {
+const (
+	DEFAULT_WEB_URL                        = "http://localhost:5173"
+	DEFAULT_GOOGLE_APPLICATION_CREDENTIALS = "./google_application_credentials.json"
+)
+
+func LoadEnv() error {
 	err := godotenv.Load()
 	if err != nil {
 		return fmt.Errorf("not able to load env vile")
 	}
+
+	webUrl := os.Getenv("WEB_URL")
+	if webUrl == "" {
+		fmt.Printf("WEB_URL environmental variable missing. Using default: %s\n", DEFAULT_WEB_URL)
+		webUrl = DEFAULT_WEB_URL
+	}
+
 	credsFilePath := os.Getenv("GOOGLE_APPLICATION_CREDENTIALS")
 	if credsFilePath == "" {
 		fmt.Printf("GOOGLE_APPLICATION_CREDENTIALS enviromental variable missing. Using default %s\n", DEFAULT_GOOGLE_APPLICATION_CREDENTIALS)
