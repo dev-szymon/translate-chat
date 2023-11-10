@@ -50,9 +50,19 @@ type UserJoinedAction = {
 export const newMessagePayloadSchema = object({
     message: messageSchema.required()
 });
+
 type NewMessageAction = {
     type: "new-message-event";
     payload: {message: Message};
+};
+
+export type JoinRoomMessage = {
+    type: "join-room-event";
+    payload: {
+        username: string;
+        language: string;
+        roomId?: string;
+    };
 };
 
 export type ChatState = {

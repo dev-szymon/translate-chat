@@ -1,15 +1,7 @@
 import LanguageSelector, {Language} from "./LanguageSelector";
 import {useConnection} from "../context/Connection.context";
 import {useState} from "react";
-
-type JoinRoomMessage = {
-    type: "join-room-event";
-    payload: {
-        username: string;
-        language: string;
-        roomId?: string;
-    };
-};
+import {JoinRoomMessage} from "../context/Chat.context";
 
 export default function Home() {
     const {conn} = useConnection();
@@ -37,14 +29,14 @@ export default function Home() {
     };
 
     return (
-        <div className="w-full bg-slate-900 text-slate-50 min-h-[100vh] flex items-center justify-center p-4">
-            <form onSubmit={handleSubmit} className="bg-slate-700 rounded p-4 max-w-xl w-full">
+        <div className="w-full text-theme-base min-h-[100vh] bg-gray-50 flex items-center justify-center p-4">
+            <form onSubmit={handleSubmit} className="rounded p-4 max-w-xl w-full">
                 <div className="flex gap-2">
                     <div className="flex-1">
                         <div className="text-base gap-2 flex mb-2 flex-col">
                             <label htmlFor="username">Username</label>
                             <input
-                                className="rounded border border-slate-400 bg-slate-600 px-4 py-2"
+                                className="rounded border border-theme-secondary px-4 py-2"
                                 placeholder="John Doe"
                                 type="text"
                                 id="username"
@@ -54,7 +46,7 @@ export default function Home() {
                         <div className="text-base gap-2 mb-2 flex flex-col">
                             <label htmlFor="roomId">{`Room id or name (optional)`}</label>
                             <input
-                                className="rounded border border-slate-400 bg-slate-600 px-4 py-2"
+                                className="rounded border border-theme-secondary px-4 py-2"
                                 placeholder="room-id-or-name"
                                 type="text"
                                 id="roomId"
@@ -72,7 +64,7 @@ export default function Home() {
                 <button
                     type="submit"
                     disabled={!language}
-                    className="flex px-4 py-2 cursor-pointer mt-4 rounded border-none bg-sky-700 text-white"
+                    className="flex px-4 py-2 cursor-pointer mt-4 rounded border-none bg-sky-700 text-theme-inverted"
                 >
                     join room
                 </button>

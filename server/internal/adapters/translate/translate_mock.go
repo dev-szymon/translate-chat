@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/rand"
 	"strings"
+	"time"
 
 	"github.com/dev-szymon/translate-chat/server/internal/core/chat"
 )
@@ -30,6 +31,8 @@ func (ts *DebugTranslateService) TranscribeAudio(ctx context.Context, sourceLang
 		Confidence: randomConfidence,
 		SourceLang: sourceLang,
 	}
+
+	time.Sleep(50 * time.Millisecond)
 
 	return transcript, nil
 }
@@ -61,6 +64,7 @@ func (ts *DebugTranslateService) TranslateText(ctx context.Context, sourceLang, 
 		SourceLang: sourceLang,
 		TargetLang: targetLang,
 	}
+	time.Sleep(100 * time.Millisecond)
 	return translation, nil
 }
 

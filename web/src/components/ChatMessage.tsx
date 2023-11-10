@@ -1,6 +1,7 @@
 import clsx from "clsx";
 import {Message, User} from "../context/Chat.context";
 import {supportedLanguages} from "./LanguageSelector";
+import SpeechBubble from "./SpeechBubble/SpeechBubble";
 
 const heatmapColors = [
     "#FF0000",
@@ -33,13 +34,13 @@ const ChatMessage: React.FC<ChatMessageProps> = ({message, sender, isOwn}) => {
     return (
         <div
             className={clsx(
-                "flex flex-col max-w-[75%] p-1 text-slate-50",
+                "flex flex-col max-w-[75%] p-1 text-theme-base",
                 isOwn && "items-end self-end pl-2"
             )}
         >
             <div className="flex gap-2">
                 <span className="flex-shrink-0 text-xs flex gap-1">
-                    <span className="text-slate-400">confidence</span>
+                    <span className="text-theme-base">confidence</span>
                     <span
                         style={{
                             color: confidenceColor
@@ -50,11 +51,11 @@ const ChatMessage: React.FC<ChatMessageProps> = ({message, sender, isOwn}) => {
                 </span>
                 <span className="text-xs">{`${language.icon} ${sender.username}`}</span>
             </div>
-            <p className="flex-1 text-lg">
-                {decodeHtmlEntity(
+            <SpeechBubble
+                text={decodeHtmlEntity(
                     message.translation?.length ? message.translation : message.transcript
                 )}
-            </p>
+            />
         </div>
     );
 };

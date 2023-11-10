@@ -33,7 +33,7 @@ export default function LanguageSelector({
         <Menu
             as="div"
             className={clsx(
-                "border border-slate-500 relative flex h-fit items-center rounded",
+                "border border-theme-secondary relative flex h-fit items-center rounded",
                 className
             )}
         >
@@ -47,13 +47,15 @@ export default function LanguageSelector({
                     <span>Select language</span>
                 )}
             </Menu.Button>
-            <Menu.Items className="absolute bg-slate-600 top-full overflow-hidden mt-2 w-full rounded left-0">
+            <Menu.Items className="absolute bg-theme-inverted top-full border border-theme-secondary overflow-hidden mt-2 w-full rounded left-0">
                 {Object.values(supportedLanguages).map((language) => (
                     <Menu.Item
                         key={language.tag}
                         className={clsx(
                             "cursor-pointer flex gap-1 py-2 px-2",
-                            currentLanguage?.tag === language.tag ? "bg-slate-400" : "bg-slate-600"
+                            currentLanguage?.tag === language.tag
+                                ? "bg-gray-200"
+                                : "bg-theme-inverted"
                         )}
                         as="div"
                         onClick={() => onLanguageChange(language)}
