@@ -31,8 +31,8 @@ export default function Chat() {
                         <ChatMessage
                             key={message.id}
                             message={message}
-                            sender={roomUsers[message.senderId]}
-                            isOwn={message.senderId === currentUser?.id}
+                            sender={roomUsers[message.sender.id]}
+                            isOwn={message.sender.id === currentUser?.id}
                         />
                     ))}
                 </div>

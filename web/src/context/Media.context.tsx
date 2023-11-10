@@ -1,24 +1,6 @@
 import {PropsWithChildren, createContext, useContext, useEffect, useRef, useState} from "react";
-import {Language} from "../components/LanguageSelector";
 import {useChatContext} from "./Chat.context";
-
-type FetchTranslationArgs = {
-    file: Blob;
-    sourceLanguage: Language["tag"];
-    userId: string;
-};
-const postAudioFile = async ({file, sourceLanguage, userId}: FetchTranslationArgs) => {
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("sourceLanguage", sourceLanguage);
-    formData.append("userId", userId);
-
-    const postFileRequest = await fetch("http://localhost:8055/translate-file", {
-        body: formData,
-        method: "POST"
-    });
-    return await postFileRequest.json();
-};
+import {useConnection} from "./Connection.context";
 interface MediaContextValue {
     isRecording: boolean;
     isPending: boolean;
@@ -39,6 +21,7 @@ export function MediaContextProvider({children}: PropsWithChildren) {
     const {
         state: {currentUser}
     } = useChatContext();
+    const {conn} = useConnection();
 
     useEffect(() => {
         if (navigator && !stream) {
@@ -77,26 +60,17 @@ export function MediaContextProvider({children}: PropsWithChildren) {
 
     useEffect(() => {
         if (isPending && !isRecording && currentUser) {
+            const magicByte = new TextEncoder().encode("B");
             const file = new Blob(audioChunks, {type: "audio/webm"});
+            const payload = new Blob([magicByte, file]);
 
             if (file.size > 0 && currentUser) {
-                postAudioFile({
-                    file,
-                    sourceLanguage: currentUser.language,
-                    userId: currentUser.id
-                })
-                    .then((response) => {
-                        if (response) {
-                            return;
-                        }
-                    })
-                    .finally(() => {
-                        setAudioChunks([]);
-                        setIsPending(false);
-                    });
+                conn.send(payload);
+                setAudioChunks([]);
+                setIsPending(false);
             }
         }
-    }, [isRecording, isPending, audioChunks, currentUser]);
+    }, [isRecording, isPending, audioChunks, conn, currentUser]);
 
     return (
         <MediaContext.Provider

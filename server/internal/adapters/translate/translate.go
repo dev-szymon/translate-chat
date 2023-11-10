@@ -1,15 +1,18 @@
-package adapters
+package translate
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"log"
 	"os"
+	"os/exec"
 
 	speech "cloud.google.com/go/speech/apiv1"
 	"cloud.google.com/go/speech/apiv1/speechpb"
 	translate "cloud.google.com/go/translate/apiv3"
 	"cloud.google.com/go/translate/apiv3/translatepb"
-	"github.com/dev-szymon/translate-chat/server/internal/core/domain"
+	"github.com/dev-szymon/translate-chat/server/internal/core/chat"
 )
 
 type TranslateService struct{}
@@ -18,13 +21,19 @@ func NewTranslateService() *TranslateService {
 	return &TranslateService{}
 }
 
-func (ts *TranslateService) TranscribeAudio(ctx context.Context, sourceLang string, flacFile []byte) (*domain.Transcript, error) {
+func (ts *TranslateService) TranscribeAudio(ctx context.Context, sourceLang string, file []byte) (*chat.Transcript, error) {
 	speechService, err := speech.NewClient(ctx)
 	if err != nil {
 		fmt.Println("Failed to initialise speech service:", err)
 		return nil, err
 	}
 	defer speechService.Close()
+
+	flacFile, err := convertBytesToFlac(file)
+	if err != nil {
+		fmt.Println("Error converting file to flac", err)
+		return nil, err
+	}
 
 	transcriptResponse, err := speechService.Recognize(ctx,
 		&speechpb.RecognizeRequest{
@@ -57,14 +66,14 @@ func (ts *TranslateService) TranscribeAudio(ctx context.Context, sourceLang stri
 		return nil, fmt.Errorf("the service could not generate transcription")
 	}
 
-	transcript := &domain.Transcript{
+	transcript := &chat.Transcript{
 		Text:       bestTranscript.Transcript,
 		Confidence: bestTranscript.Confidence,
 	}
 	return transcript, nil
 }
 
-func (ts *TranslateService) TranslateText(ctx context.Context, sourceLang, targetLang, text string) (*domain.Translation, error) {
+func (ts *TranslateService) TranslateText(ctx context.Context, sourceLang, targetLang, text string) (*chat.Translation, error) {
 	translateService, err := translate.NewTranslationClient(ctx)
 	if err != nil {
 		fmt.Println("Failed to initialise translation service", err)
@@ -89,10 +98,31 @@ func (ts *TranslateService) TranslateText(ctx context.Context, sourceLang, targe
 		return nil, err
 	}
 
-	translation := &domain.Translation{
+	translation := &chat.Translation{
 		Text:       translationResponse.Translations[0].TranslatedText,
 		TargetLang: targetLang,
 		SourceLang: sourceLang,
 	}
 	return translation, nil
+}
+
+func convertBytesToFlac(file []byte) ([]byte, error) {
+	cmd := exec.Command("ffmpeg", "-i", "pipe:0", "-c:a", "flac", "-f", "flac", "-")
+
+	var (
+		output bytes.Buffer
+		errors bytes.Buffer
+	)
+
+	cmd.Stdin = bytes.NewReader(file)
+	cmd.Stdout = &output
+	cmd.Stderr = &errors
+
+	err := cmd.Run()
+	if err != nil {
+		log.Printf("FFmpeg stderr: %s", errors.String())
+		return nil, err
+	}
+
+	return output.Bytes(), nil
 }

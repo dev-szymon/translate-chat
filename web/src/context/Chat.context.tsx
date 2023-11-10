@@ -17,14 +17,14 @@ const messageSchema = object({
     transcript: string().required(),
     confidence: number().required(),
     translation: string().defined().nullable(),
-    senderId: string().required()
+    sender: userSchema.required()
 });
 export type Message = {
     id: string;
     transcript: string;
     translation: string | null;
     confidence: number;
-    senderId: string;
+    sender: User;
 };
 
 const roomSchema = object({
@@ -43,7 +43,7 @@ export const userJoinedPayloadSchema = object({
     room: roomSchema.required()
 });
 type UserJoinedAction = {
-    type: "user-joined";
+    type: "user-joined-event";
     payload: {newUser: User; room: Room};
 };
 
@@ -51,7 +51,7 @@ export const newMessagePayloadSchema = object({
     message: messageSchema.required()
 });
 type NewMessageAction = {
-    type: "new-message";
+    type: "new-message-event";
     payload: {message: Message};
 };
 
@@ -65,7 +65,7 @@ export type Action = UserJoinedAction | NewMessageAction;
 
 function chatReducer(state: ChatState, action: Action): ChatState {
     switch (action.type) {
-        case "user-joined": {
+        case "user-joined-event": {
             const roomUsers = action.payload.room.users.reduce(
                 (users: ChatState["roomUsers"], curr: User) => {
                     return {...users, [curr.id]: curr};
@@ -81,7 +81,7 @@ function chatReducer(state: ChatState, action: Action): ChatState {
                 roomUsers
             };
         }
-        case "new-message": {
+        case "new-message-event": {
             return {...state, messages: [...state.messages, action.payload.message]};
         }
         default:

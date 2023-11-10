@@ -9,11 +9,11 @@ import {MediaContextProvider} from "./context/Media.context.tsx";
 createRoot(document.getElementById("root")!).render(
     <StrictMode>
         <UserContextProvider>
-            <MediaContextProvider>
-                <ConnectionContextProvider>
+            <ConnectionContextProvider>
+                <MediaContextProvider>
                     <App />
-                </ConnectionContextProvider>
-            </MediaContextProvider>
+                </MediaContextProvider>
+            </ConnectionContextProvider>
         </UserContextProvider>
     </StrictMode>
 );

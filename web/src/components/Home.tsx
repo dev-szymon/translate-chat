@@ -3,7 +3,7 @@ import {useConnection} from "../context/Connection.context";
 import {useState} from "react";
 
 type JoinRoomMessage = {
-    type: "join-room";
+    type: "join-room-event";
     payload: {
         username: string;
         language: string;
@@ -26,7 +26,7 @@ export default function Home() {
         const roomId = typeof roomIdValue === "string" ? roomIdValue : undefined;
 
         const message: JoinRoomMessage = {
-            type: "join-room",
+            type: "join-room-event",
             payload: {
                 username,
                 roomId,

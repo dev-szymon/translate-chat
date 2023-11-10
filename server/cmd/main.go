@@ -2,28 +2,27 @@ package main
 
 import (
 	"fmt"
-	"log"
-	"net/http"
 
-	"github.com/dev-szymon/translate-chat/server/internal/adapters"
-	"github.com/dev-szymon/translate-chat/server/internal/core"
-	"github.com/dev-szymon/translate-chat/server/internal/core/domain"
+	"github.com/dev-szymon/translate-chat/server/internal/adapters/translate"
+	"github.com/dev-szymon/translate-chat/server/internal/adapters/websocket"
+	"github.com/dev-szymon/translate-chat/server/internal/core/app"
+	"github.com/dev-szymon/translate-chat/server/internal/core/config"
+	"github.com/dev-szymon/translate-chat/server/internal/ports"
 )
 
 func main() {
-	err := core.LoadEnv()
-	if err != nil {
-		log.Fatal("Not able to load necessary environmental variables: ", err)
+	c := config.MustLoadEnv()
+
+	var ts ports.TranslateServicePort
+	if c.Environment == "TEST" {
+		fmt.Println("Translation service running in debug mode...")
+		ts = translate.NewDebugTranslateService()
+	} else {
+		ts = translate.NewTranslateService()
 	}
+	wss := websocket.NewServer()
 
-	ts := adapters.NewTranslateService()
-	chat := domain.NewChat()
-	server := adapters.NewServer()
-	es := adapters.NewEventService()
+	app := app.NewApp(ts, wss)
 
-	http.HandleFunc("/ws", server.HandleWS(chat, es))
-	http.HandleFunc("/translate-file", adapters.EnableCors(server.HandlePostFile(chat, ts)))
-
-	fmt.Println("Server starting on: ", "http://localhost:8055")
-	log.Fatal(http.ListenAndServe(":8055", nil))
+	app.Run()
 }

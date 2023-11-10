@@ -17,28 +17,28 @@ const ConnectionContext = createContext<ConnectionContextValue>({} as Connection
 
 export function ConnectionContextProvider({children}: PropsWithChildren) {
     const conn = useMemo(() => new WebSocket("ws://localhost:8055/ws"), []);
-
     const {dispatch} = useChatContext();
 
     const handleEvent = useCallback(
         async (data: string) => {
+            console.log("data", data);
             const json = JSON.parse(data);
             const eventData = await eventSchema.validate(json);
 
             if (eventData) {
                 const {type, payload} = eventData;
                 switch (type) {
-                    case "user-joined": {
+                    case "user-joined-event": {
                         const validPayload = await userJoinedPayloadSchema.validate(payload);
                         if (validPayload) {
-                            return dispatch({type: "user-joined", payload: validPayload});
+                            return dispatch({type: "user-joined-event", payload: validPayload});
                         }
                         return;
                     }
-                    case "new-message": {
+                    case "new-message-event": {
                         const validPayload = await newMessagePayloadSchema.validate(payload);
                         if (validPayload) {
-                            return dispatch({type: "new-message", payload: validPayload});
+                            return dispatch({type: "new-message-event", payload: validPayload});
                         }
                         return;
                     }
