@@ -11,7 +11,7 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-type broadcastMessage struct {
+type broadcastTranslation struct {
 	file   []byte
 	sender *chat.User
 }
@@ -25,7 +25,8 @@ type Pool struct {
 	clients   map[*Client]bool
 	room      *chat.Room
 
-	broadcastCh chan *broadcastMessage
+	broadcastTranslationCh chan *broadcastTranslation
+	broadcastEventCh       chan *OutboundEvent
 
 	joinCh  chan *Client
 	leaveCh chan *Client
@@ -36,9 +37,10 @@ func NewPool(ts ports.TranslateServicePort) *Pool {
 		clients: make(map[*Client]bool),
 		room:    chat.NewRoom(),
 
-		broadcastCh: make(chan *broadcastMessage),
-		joinCh:      make(chan *Client),
-		leaveCh:     make(chan *Client),
+		broadcastTranslationCh: make(chan *broadcastTranslation),
+		broadcastEventCh:       make(chan *OutboundEvent),
+		joinCh:                 make(chan *Client),
+		leaveCh:                make(chan *Client),
 	}
 
 	go pool.Read()
@@ -46,49 +48,50 @@ func NewPool(ts ports.TranslateServicePort) *Pool {
 	return pool
 }
 
-func (p *Pool) addClient(client *Client) {
+func (p *Pool) handleAddClient(client *Client) {
 	p.clientsMu.Lock()
-	defer p.clientsMu.Unlock()
-
 	p.clients[client] = true
+	p.clientsMu.Unlock()
+
 	p.room.AddUser(client.user)
+
+	usersInRoom := []*RoomUser{}
+	for c := range p.clients {
+		usersInRoom = append(usersInRoom, &RoomUser{Id: c.user.Id, Username: c.user.Username, Language: c.user.Language})
+	}
+	payload := &UserJoinedPayload{
+		NewUser: &RoomUser{Id: client.user.Id, Username: client.user.Username, Language: client.user.Language},
+		Room:    &CurrentRoom{Id: p.room.Id, Name: p.room.Name, Users: usersInRoom},
+	}
+	for c := range p.clients {
+		c.conn.WriteJSON(&OutboundEvent{
+			Type:    USER_JOINED_EVENT,
+			Payload: payload,
+		})
+	}
 }
 
-func (p *Pool) removeClient(client *Client) {
+func (p *Pool) handleRemoveClient(client *Client) {
 	p.clientsMu.Lock()
-	defer p.clientsMu.Unlock()
-
 	p.room.RemoveUser(client.user.Id)
+	delete(p.clients, client)
+	p.clientsMu.Unlock()
+
 }
 
 func (p *Pool) Read() {
 	for {
 		select {
 		case client := <-p.joinCh:
-			p.addClient(client)
-			usersInRoom := []*RoomUser{}
-			for c := range p.clients {
-				usersInRoom = append(usersInRoom, &RoomUser{Id: c.user.Id, Username: c.user.Username, Language: c.user.Language})
-			}
-			payload := &UserJoinedPayload{
-				NewUser: &RoomUser{Id: client.user.Id, Username: client.user.Username, Language: client.user.Language},
-				Room:    &CurrentRoom{Id: p.room.Id, Name: p.room.Name, Users: usersInRoom},
-			}
-			for c := range p.clients {
-				c.conn.WriteJSON(&OutboundEvent{
-					Type:    USER_JOINED_EVENT,
-					Payload: payload,
-				})
-			}
-
+			p.handleAddClient(client)
 		case client := <-p.leaveCh:
-			p.removeClient(client)
+			p.handleRemoveClient(client)
 		}
 	}
 }
 
 func (p *Pool) Broadcast(ts ports.TranslateServicePort) {
-	for b := range p.broadcastCh {
+	for b := range p.broadcastTranslationCh {
 		transcript, err := ts.TranscribeAudio(context.Background(), b.sender.Language, b.file)
 		if err != nil {
 			// TODO handle error
@@ -101,19 +104,21 @@ func (p *Pool) Broadcast(ts ports.TranslateServicePort) {
 		}
 
 		var wg sync.WaitGroup
-		wg.Add(len(languages))
-		translationsCh := make(chan *chat.Translation, len(languages))
+		wg.Add(len(languages) - 1)
+		translationsCh := make(chan *chat.Translation, len(languages)-1)
 
 		for l := range languages {
-			go func(ch chan *chat.Translation, sourceLang, targetLang, text string) {
-				translation, err := ts.TranslateText(context.Background(), sourceLang, targetLang, text)
-				if err != nil {
-					// TODO handle error
-					fmt.Printf("Translation error: %+v", err)
-				}
-				wg.Done()
-				ch <- translation
-			}(translationsCh, transcript.SourceLang, l, transcript.Text)
+			if l != transcript.SourceLang {
+				go func(ch chan *chat.Translation, sourceLang, targetLang, text string) {
+					translation, err := ts.TranslateText(context.Background(), sourceLang, targetLang, text)
+					if err != nil {
+						// TODO handle error
+						fmt.Printf("Translation error: %+v", err)
+					}
+					wg.Done()
+					ch <- translation
+				}(translationsCh, transcript.SourceLang, l, transcript.Text)
+			}
 		}
 
 		wg.Wait()
@@ -125,6 +130,12 @@ func (p *Pool) Broadcast(ts ports.TranslateServicePort) {
 		}
 
 		for client := range p.clients {
+			var translationText *string
+			existingTranslation, ok := translations[client.user.Language]
+			if ok {
+				translationText = &existingTranslation.Text
+			}
+
 			client.conn.WriteJSON(&OutboundEvent{
 				Type: NEW_MESSAGE_EVENT,
 				Payload: &NewMessagePayload{
@@ -132,7 +143,7 @@ func (p *Pool) Broadcast(ts ports.TranslateServicePort) {
 						Id:          uuid.NewString(),
 						Transcript:  transcript.Text,
 						Confidence:  transcript.Confidence,
-						Translation: &translations[client.user.Language].Text,
+						Translation: translationText,
 						Sender: &RoomUser{
 							Id:       b.sender.Id,
 							Username: b.sender.Username,

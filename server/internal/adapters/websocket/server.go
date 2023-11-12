@@ -69,7 +69,7 @@ func (s *Server) HandleWS(ts ports.TranslateServicePort) http.HandlerFunc {
 				audioBytes := msgBytes[1:]
 
 				pool := s.roomIdToPool[user.CurrentRoom.Id]
-				pool.broadcastCh <- &broadcastMessage{file: audioBytes, sender: user}
+				pool.broadcastTranslationCh <- &broadcastTranslation{file: audioBytes, sender: user}
 			} else {
 				var event InboundEvent
 				err = json.Unmarshal(msgBytes, &event)
