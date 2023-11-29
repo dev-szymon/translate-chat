@@ -1,3 +1,4 @@
+import {MicrophoneIcon} from "@heroicons/react/24/outline";
 import clsx from "clsx";
 import {MouseEventHandler} from "react";
 
@@ -8,12 +9,6 @@ type RecordButtonProps = {
     variant: "idle" | "recording" | "pending";
 };
 
-const recordButtonText: Record<RecordButtonProps["variant"], string> = {
-    idle: "speak",
-    pending: "translating...",
-    recording: "stop"
-};
-
 const RecordButton: React.FC<RecordButtonProps> = ({className, onClick, disabled, variant}) => {
     return (
         <button
@@ -21,12 +16,20 @@ const RecordButton: React.FC<RecordButtonProps> = ({className, onClick, disabled
             onClick={onClick}
             disabled={disabled || variant == "pending"}
             className={clsx(
-                "px-4 py-2 border text-white rounded w-full disabled:bg-gray-600 disabled:border-gray-200",
-                variant === "recording" ? "bg-red-800 border-red-400" : "bg-sky-700 border-sky-400",
+                "flex min-w-[100px] gap-2 items-center relative justify-center py-2 text-theme-base rounded-md disabled:bg-theme-disabled",
+                variant === "recording" ? "bg-theme-primary-light" : "bg-theme-primary",
                 className
             )}
         >
-            {recordButtonText[variant]}
+            <div className="w-2" />
+            <MicrophoneIcon className="h-4 w-4" />
+            <div className="w-2">
+                {variant === "recording" && (
+                    <div className="relative w-2 h-2 rounded-full bg-red-500">
+                        <div className="absolute animate-ping rounded-full bg-red-500 opacity-70 inset-0" />
+                    </div>
+                )}
+            </div>
         </button>
     );
 };

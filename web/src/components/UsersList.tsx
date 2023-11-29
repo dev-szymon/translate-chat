@@ -8,7 +8,7 @@ interface UsersListProps {
 }
 const UsersList: React.FC<UsersListProps> = ({users, className}) => {
     return (
-        <div className={clsx("flex w-full flex-col bg-gray-50 text-theme-base gap-2", className)}>
+        <div className={clsx("flex w-full flex-col text-theme-inverted gap-2", className)}>
             {users.map(({id, username, language}) => {
                 return (
                     <div key={id} className="px-4 py-2 flex gap-2 rounded">

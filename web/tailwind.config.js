@@ -5,20 +5,22 @@ export default {
         extend: {
             colors: {
                 theme: {
+                    inverted: {
+                        DEFAULT: "var(--color-inverted)"
+                    },
+                    base: {
+                        DEFAULT: "var(--color-base)",
+                        50: "var(--color-base-50)",
+                        200: "var(--color-base-200)"
+                    },
                     primary: {
-                        DEFAULT: "var(--color-primary-base)",
+                        DEFAULT: "var(--color-primary)",
                         dark: "var(--color-primary-dark)",
                         light: "var(--color-primary-light)"
                     },
-                    secondary: {
-                        DEFAULT: "var(--color-secondary-base)"
+                    disabled: {
+                        DEFAULT: "var(--color-disabled)"
                     }
-                }
-            },
-            textColor: {
-                theme: {
-                    base: "var(--color-text-base)",
-                    inverted: "var(--color-text-inverted)"
                 }
             }
         }

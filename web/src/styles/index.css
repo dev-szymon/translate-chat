@@ -4,17 +4,34 @@
 
 @layer theme {
     :root {
-        --color-text-base: #090909;
-        --color-text-inverted: #ffffff;
+        --color-inverted: #292524;
 
-        --color-primary-base: #f6e5ce;
-        --color-primay-dark: #d3ba98;
-        --color-primary-light: #f8ead8;
+        --color-base: #ffffff;
+        --color-base-50: #fafaf9;
+        --color-base-200: #e7e5e4;
 
-        --color-secondary-base: #484b89;
+        --color-primary: #3b82f6;
+        --color-primay-dark: #2563eb;
+        --color-primary-light: #60a5fa;
+
+        --color-disabled: #a1a1aa;
     }
 
     .theme-light {
+        --color-inverted: #292524;
+
+        --color-base: #ffffff;
+        --color-base-50: #fafaf9;
+        --color-base-200: #e7e5e4;
+
+        --color-primary: #3b82f6;
+        --color-primay-dark: #2563eb;
+        --color-primary-light: #60a5fa;
+
+        --color-disabled: #a1a1aa;
+    }
+
+    .theme-dark {
         --color-text-base: #101010;
         --color-text-inverted: #ffffff;
 
@@ -23,13 +40,7 @@
         --color-primary-light: #00a35b;
 
         --color-secondary-base: #f2e14d;
-    }
 
-    .theme-dark {
-        --color-text-base: #101010;
-        --color-text-inverted: #ffffff;
-        --color-primary-base: #ce0000;
-        --color-primary-light: #f92b2b;
-        --color-secondary: #f2e14d;
+        --color-disabled: #a1a1aa;
     }
 }

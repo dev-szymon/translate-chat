@@ -29,7 +29,7 @@ export default function Home() {
     };
 
     return (
-        <div className="w-full text-theme-base min-h-[100vh] bg-gray-50 flex items-center justify-center p-4">
+        <div className="w-full text-theme-inverted min-h-[100vh] bg-theme-base-50 flex items-center justify-center p-4">
             <form onSubmit={handleSubmit} className="rounded p-4 max-w-xl w-full">
                 <div className="flex gap-2">
                     <div className="flex-1">

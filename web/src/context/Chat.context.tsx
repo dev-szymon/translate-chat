@@ -69,7 +69,7 @@ export type ChatState = {
     currentUser: User | null;
     room: Room | null;
     roomUsers: Record<User["id"], User>;
-    messages: Array<Message>;
+    messages: Array<Array<Message>>;
 };
 export type Action = UserJoinedAction | NewMessageAction;
 
@@ -92,7 +92,25 @@ function chatReducer(state: ChatState, action: Action): ChatState {
             };
         }
         case "new-message-event": {
-            return {...state, messages: [...state.messages, action.payload.message]};
+            const isContinuation =
+                action.payload.message.sender.id ===
+                state.messages[state.messages.length - 1]?.[0]?.sender.id;
+
+            if (!isContinuation) {
+                return {...state, messages: [...state.messages, [action.payload.message]]};
+            } else {
+                const lastMessageGroup = [
+                    ...state.messages[state.messages.length - 1],
+                    action.payload.message
+                ];
+                return {
+                    ...state,
+                    messages: [
+                        ...state.messages.slice(0, state.messages.length - 1),
+                        lastMessageGroup
+                    ]
+                };
+            }
         }
         default:
             return state;

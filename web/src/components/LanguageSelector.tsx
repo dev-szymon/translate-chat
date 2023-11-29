@@ -37,7 +37,7 @@ export default function LanguageSelector({
                 className
             )}
         >
-            <Menu.Button className="w-full px-4 py-2 h-full flex items-center">
+            <Menu.Button className="w-full bg-theme-base px-4 py-2 h-full flex items-center">
                 {currentLanguage ? (
                     <div className="flex gap-2">
                         <span className="text-lg leading-6">{currentLanguage.icon}</span>
@@ -47,15 +47,15 @@ export default function LanguageSelector({
                     <span>Select language</span>
                 )}
             </Menu.Button>
-            <Menu.Items className="absolute bg-theme-inverted top-full border border-theme-secondary overflow-hidden mt-2 w-full rounded left-0">
+            <Menu.Items className="absolute bg-theme-base top-full border border-theme-secondary overflow-hidden mt-2 w-full rounded left-0">
                 {Object.values(supportedLanguages).map((language) => (
                     <Menu.Item
                         key={language.tag}
                         className={clsx(
                             "cursor-pointer flex gap-1 py-2 px-2",
                             currentLanguage?.tag === language.tag
-                                ? "bg-gray-200"
-                                : "bg-theme-inverted"
+                                ? "bg-theme-base-200"
+                                : "bg-theme-base"
                         )}
                         as="div"
                         onClick={() => onLanguageChange(language)}
